@@ -308,6 +308,13 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
     { id: 'tangerine', name: '귤', kind: 3, skin: '#FF9A1F', cream: '#FFC36B', deep: '#D45F06' },
   ];
   THROW.forEach((f) => { f.bg = ['#F3E2C2', '#DDBB88']; f.accent = '#C2410C'; f.bgRgb = f.bg.map(hexRgb); });
+  /* 과일마다 손맛: r 크기, flat 퍼지는 시간, spread 얼마나 납작하게 퍼지나, hold 다 퍼진 채 버티는 시간, back 쪼그라드는 시간, snd [소리, 높이, 크기] */
+  const THROW_FEEL = [
+    { r: 0.24, flat: 0.18, spread: 1.0, hold: 0.6, back: 3.6, snd: [['splat', 1.0, 0.75]], buzz: 16 },                                 // 토마토: 묽어서 넓고 얇게 철퍽
+    { r: 0.18, flat: 0.12, spread: 0.85, hold: 0.45, back: 2.8, snd: [['splat', 1.3, 0.6], ['pop', 1.25, 0.3]], buzz: 10 },           // 주황 토마토: 작게 톡 터지며 퍽, 금방 쪼그라든다
+    { r: 0.2, flat: 0.26, spread: 0.72, hold: 0.9, back: 4.4, snd: [['splat', 0.78, 0.6], ['peel', 0.8, 0.35]], buzz: [10, 25, 8] },  // 딸기: 뭉근하게 뿍, 두툼하게 오래 붙어 있다
+    { r: 0.22, flat: 0.14, spread: 0.82, hold: 0.5, back: 3.0, snd: [['splat', 1.12, 0.6], ['spritz', 1, 0.45]], buzz: [6, 16, 12] }, // 귤: 껍질이 퍽 + 즙이 칙
+  ];
   const LISTS = { squishy: SQUISHY, ohaeng: OHAENG, wax: WAX, keycap: KEYCAP, throw: THROW };
   const idx = { squishy: 1, ohaeng: 0, wax: 0, keycap: 0, throw: 0 };
   const cur = () => LISTS[mode][idx[mode]];
@@ -318,11 +325,11 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   const ball = { cx: 0, cy: 0, R: 120, floor: 0, cyEff: 0 };
   const shape = { a: 1, va: 0, th: 0, f: 0, vf: 0, flatT: 0, pop: 1, vp: 0, inv: [1, 0, 0, 1], m: [1, 0, 0, 1], extX: 1, extY: 1 };
   const spin = { w: [0, 0, 0], hold: false };
-  const stretch = { active: false, a: null, b: null, d0: 1 };
+  const stretch = { active: false, a: null, b: null, d0: 1, ang: null, mx: 0, my: 0 };
   const pointers = new Map();
   const dents = Array.from({ length: 6 }, () => ({ used: false, active: false, x: 0, y: 0, tx: 0, ty: 0, depth: 0, vel: 0, r: 0.24, r0: 0.24, max: 0.3, hold: 0, rel: 0, grow: 0, feel: FEEL_BASE }));
   const perm = [];   // 고정된 자국 { dir 공 표면 방향, depth, r } 최대 24개
-  let fixOn = store.get('malang_fix') === '1';
+  let fixOn = store.get('malang_fix2') !== '0';   // 자국 고정은 처음부터 켜 둔다
   let O = [1, 0, 0, 0, 1, 0, 0, 0, 1];   // 공의 자세(공 좌표 → 화면 좌표, 행 우선)
   let waxDone = false, forceDraw = true, maskDirty = true, coverDirty = true, lastCover = 0;
   let cover = { cracked: 0, broken: 0, crushed: 0 }, crushDone = false;
@@ -606,20 +613,36 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
       o.start(t); o.stop(t + 0.08);
     }
     const RECIPES = {
-      // 찌걱: 공기가 빠지는 쥬욱 + 표면이 붙었다 미끄러지며 나는 짧은 마찰이 빠르게 이어진다
-      squelch: [8, 0.5, (oc) => {
+      // 찌—걱: 공기가 빠지는 쥬욱은 작게, 붙었다 미끄러지는 마찰이 부드럽게 들어와 커지며 빨라지고(찌—), 끝에 낮고 굵게 한 번 걸린다(걱)
+      squelch: [8, 0.55, (oc) => {
         const D = oc.destination;
-        chain(noise(oc, 0, 0.45), sweep(oc, 'bandpass', rnd(1500, 2100), rnd(480, 650), 0, 0.3, 1.1), env(oc, 0, rnd(0.45, 0.6), 0.02, rnd(0.22, 0.3)), D);
-        const bp = filt(oc, 'bandpass', rnd(850, 1350), rnd(5, 8)), g = oc.createGain();
-        g.gain.value = 4.5; bp.connect(g); g.connect(D);
-        const end = rnd(0.2, 0.3), f0 = rnd(26, 38), f1 = rnd(60, 90);
-        let t = rnd(0.01, 0.03);
+        chain(noise(oc, 0, 0.5), sweep(oc, 'bandpass', rnd(1400, 1900), rnd(480, 620), 0, 0.35, 1.0), env(oc, 0, rnd(0.22, 0.3), 0.06, rnd(0.28, 0.36)), D);
+        const bp = filt(oc, 'bandpass', rnd(950, 1300), rnd(6, 9)), g = oc.createGain();
+        g.gain.value = 3.0; bp.connect(g); g.connect(D);
+        const end = rnd(0.28, 0.36), f0 = rnd(22, 30), f1 = rnd(55, 75);
+        let t = rnd(0.005, 0.015);
         while (t < end) {
-          const k = t / end;
-          chain(noise(oc, t, 0.004), env(oc, t, rnd(0.5, 0.9) * (1 - k * 0.5), 0.0005, 0.003), bp);
-          t += (1 / (f0 + (f1 - f0) * k)) * rnd(0.8, 1.2);
+          const k = t / end, amp = Math.min(1, t / 0.08) * (0.55 + 0.45 * k);
+          chain(noise(oc, t, 0.004), env(oc, t, rnd(0.5, 0.8) * amp, 0.0006, 0.003), bp);
+          t += (1 / (f0 + (f1 - f0) * k)) * rnd(0.85, 1.15);
         }
-        bubble(oc, rnd(0.04, 0.12), rnd(700, 1200));
+        const bp2 = filt(oc, 'bandpass', rnd(380, 520), 3), g2 = oc.createGain();
+        g2.gain.value = 3.0; bp2.connect(g2); g2.connect(D);
+        for (let i = 0; i < 4; i++) { const tt = end + i * rnd(0.012, 0.02); chain(noise(oc, tt, 0.006), env(oc, tt, rnd(0.5, 0.8) * (1 - i * 0.18), 0.0008, 0.005), bp2); }
+        const o = osc(oc, 'sine', rnd(150, 175), rnd(95, 110), end, end + 0.06);
+        chain(o, env(oc, end, 0.14, 0.003, 0.06), D); o.start(end); o.stop(end + 0.12);
+      }],
+      // 꾹 누르고 있는 동안 자국이 커지며 나는 작은 찌익 조각 — 촘촘히 틀면 끊기지 않는 찌—— 가 된다
+      creak: [10, 0.14, (oc) => {
+        const bp = filt(oc, 'bandpass', rnd(800, 1400), rnd(6, 10)), g = oc.createGain();
+        g.gain.value = 2.6; bp.connect(g); g.connect(oc.destination);
+        const n = 3 + ((Math.random() * 4) | 0), rate = rnd(35, 70);
+        let t = 0.002;
+        for (let i = 0; i < n; i++) {
+          chain(noise(oc, t, 0.004), env(oc, t, rnd(0.45, 0.75) * Math.sin(Math.PI * (i + 0.5) / n), 0.0006, 0.003), bp);
+          t += (1 / rate) * rnd(0.85, 1.15);
+        }
+        chain(noise(oc, 0, 0.1), filt(oc, 'bandpass', rnd(500, 700), 1), env(oc, 0, 0.05, 0.01, 0.07), oc.destination);
       }],
       // 쫘악: 끈적한 겉면이 떨어지는 짧은 알갱이 — 손가락 속도만큼 촘촘히 튼다
       stick: [10, 0.07, (oc) => {
@@ -685,6 +708,13 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
         }
         const o = osc(oc, 'sine', rnd(170, 210), rnd(85, 100), 0, 0.08);
         chain(o, env(oc, 0, 0.22, 0.002, 0.08), D); o.start(0);
+      }],
+      // 귤즙이 칙 튀는 소리
+      spritz: [4, 0.3, (oc) => {
+        const D = oc.destination;
+        chain(noise(oc, 0.005, 0.25), sweep(oc, 'highpass', rnd(3000, 4000), rnd(6000, 7500), 0.005, 0.2, 0.7), env(oc, 0.005, 0.32, 0.004, 0.18), D);
+        const m = 10 + ((Math.random() * 8) | 0);
+        for (let k = 0; k < m; k++) { const t = rnd(0.005, 0.18); chain(noise(oc, t, 0.004), filt(oc, 'bandpass', rnd(4500, 9000), 2), env(oc, t, rnd(0.08, 0.25), 0.0004, 0.003), D); }
       }],
       // 던지기: 휙 날아가 벽에 철퍽
       whoosh: [4, 0.25, (oc) => {
@@ -2033,9 +2063,10 @@ void main() {
     const tx = (x - ball.cx) / ball.R, ty = (ball.cy - y) / ball.R;
     const sx = (rnd(-0.2, 0.2) * W) / ball.R, sy = -(H - ball.cy) / ball.R - 0.5;   // 화면 아래 손에서 출발
     // r: 원목 면 위에서의 크기. 화면에서는 멀수록(위쪽) 작아 보인다. 날아가는 공은 붙을 자리 크기에 맞춰 줄어든다
-    splats.push({ kind: cur().kind, tx, ty, sx, sy, x: sx, y: sy, t: 0, phase: 'fly', r: 0.24 * rnd(0.9, 1.1), land: 1 / planeW(ty), scale: 1 / THROW_NEAR,
+    const f = THROW_FEEL[cur().kind];
+    splats.push({ kind: cur().kind, tx, ty, sx, sy, x: sx, y: sy, t: 0, phase: 'fly', r: f.r * rnd(0.9, 1.1), land: 1 / planeW(ty), scale: 1 / THROW_NEAR,
       spread: 0, seed: Math.random(), rot: rnd(0, 6.28), alpha: 1, air: 1 });
-    Sound.play('whoosh', { gain: 0.5, rate: rnd(0.9, 1.15) });
+    Sound.play('whoosh', { gain: 0.5, rate: rnd(0.9, 1.15) * Math.sqrt(0.24 / f.r) });   // 작은 과일은 휙 소리도 가볍게
   }
   function updateSplats(dt) {
     for (let i = splats.length - 1; i >= 0; i--) {
@@ -2053,17 +2084,19 @@ void main() {
         if (e >= 1) {
           sp.phase = 'stuck'; sp.t = 0; sp.air = 0; sp.scale = 1;
           [sp.x, sp.y] = planeOf(sp.tx, sp.ty);   // 이제부터는 원목 면 위의 자리
-          Sound.play('splat', { gain: rnd(0.65, 0.8), rate: rnd(0.92, 1.08) });
-          tick(); buzz(16);
+          const f = THROW_FEEL[sp.kind];
+          f.snd.forEach(([n, r, g]) => Sound.play(n, { gain: g * rnd(0.88, 1.06), rate: r * rnd(0.94, 1.06) }));
+          tick(); buzz(f.buzz);
         }
       } else if (sp.phase === 'stuck') {
         // 쩍: 닿으면 0.18초 동안 처음엔 빠르게, 끝으로 갈수록 끈적하게 느려지며 퍼진다. 가장 크게 퍼진 뒤엔
         // 표면이 당기듯 3%만 살짝 오므라들고(출렁임 없음), 0.6초부터 3.6초에 걸쳐 서서히 쪼그라든다
-        const u = Math.min(1, sp.t / 0.18), flat = 1 - Math.pow(1 - u, 3);
-        const settle = Math.min(1, Math.max(0, (sp.t - 0.18) / 0.3));
-        const back = sp.t < 0.6 ? 0 : Math.min(1, (sp.t - 0.6) / 3.6);
-        sp.spread = flat * (1 - 0.03 * settle * settle * (3 - 2 * settle)) * (1 - back * back * (3 - 2 * back));
-        if (sp.t > 4.4) { sp.phase = 'fall'; sp.t = 0; Sound.play('peel', { gain: 0.5, rate: rnd(0.9, 1.1) }); }
+        const f = THROW_FEEL[sp.kind];
+        const u = Math.min(1, sp.t / f.flat), flat = 1 - Math.pow(1 - u, 3);
+        const settle = Math.min(1, Math.max(0, (sp.t - f.flat) / 0.3));
+        const back = sp.t < f.hold ? 0 : Math.min(1, (sp.t - f.hold) / f.back);
+        sp.spread = f.spread * flat * (1 - 0.03 * settle * settle * (3 - 2 * settle)) * (1 - back * back * (3 - 2 * back));
+        if (sp.t > f.hold + f.back + 0.2) { sp.phase = 'fall'; sp.t = 0; Sound.play('peel', { gain: 0.5, rate: rnd(0.9, 1.1) }); }
       } else {
         // 다 쪼그라들면 쩍 떨어지며 사라진다
         sp.alpha = Math.max(0, 1 - sp.t / 0.6);
@@ -2080,13 +2113,13 @@ void main() {
   function noteInteraction() { if (++hintCount >= 3) hintEl.classList.add('gone'); }
 
   function pressSound(snd) {
-    if (snd === 'jelly') Sound.play('jellyPress', { gain: rnd(0.7, 0.95), rate: rnd(0.9, 1.12) });
-    else Sound.play('squelch', { gain: rnd(0.75, 1), rate: snd === 'mochi' ? rnd(0.82, 0.95) : rnd(0.92, 1.1) });
+    if (snd === 'jelly') Sound.play('jellyPress', { gain: rnd(0.5, 0.65), rate: rnd(0.9, 1.12) });
+    else Sound.play('squelch', { gain: rnd(0.45, 0.58), rate: snd === 'mochi' ? rnd(0.82, 0.95) : rnd(0.92, 1.1) });
   }
   function releaseSound(snd, ratio) {
-    if (snd === 'jelly') Sound.play('jellyRelease', { gain: 0.35 + 0.6 * ratio, rate: rnd(0.9, 1.15) });
-    else if (snd === 'mochi') { Sound.play('peel', { gain: 0.4 + 0.6 * ratio, rate: rnd(0.9, 1.1) }); Sound.play('foamRelease', { gain: 0.35 * ratio, rate: rnd(0.9, 1.1) }); }
-    else Sound.play('foamRelease', { gain: 0.25 + 0.75 * ratio, rate: rnd(0.9, 1.1) });
+    if (snd === 'jelly') Sound.play('jellyRelease', { gain: 0.25 + 0.42 * ratio, rate: rnd(0.9, 1.15) });
+    else if (snd === 'mochi') { Sound.play('peel', { gain: 0.3 + 0.42 * ratio, rate: rnd(0.9, 1.1) }); Sound.play('foamRelease', { gain: 0.25 * ratio, rate: rnd(0.9, 1.1) }); }
+    else Sound.play('foamRelease', { gain: 0.18 + 0.52 * ratio, rate: rnd(0.9, 1.1) });
   }
   function materialAt(x, y) {
     if (mode !== 'wax') return { kind: 'soft', feel: cur().feel, sound: cur().sound };
@@ -2127,7 +2160,7 @@ void main() {
     const presses = [...pointers.values()].filter((p) => p.kind === 'press');
     if (presses.length >= 2 && !stretch.active) {
       const p = presses[presses.length - 2], q = presses[presses.length - 1];
-      stretch.active = true; stretch.a = p.id; stretch.b = q.id;
+      stretch.active = true; stretch.a = p.id; stretch.b = q.id; stretch.ang = null;
       stretch.d0 = Math.max(24, Math.hypot(q.x - p.x, q.y - p.y));
     }
   }
@@ -2301,7 +2334,7 @@ void main() {
   dim2.addEventListener('click', () => setSolid(false));
   dim3.addEventListener('click', () => setSolid(true));
   function syncFixBtn() { fixBtn.setAttribute('aria-pressed', String(fixOn)); }
-  fixBtn.addEventListener('click', () => { fixOn = !fixOn; store.set('malang_fix', fixOn ? '1' : '0'); syncFixBtn(); });
+  fixBtn.addEventListener('click', () => { fixOn = !fixOn; store.set('malang_fix2', fixOn ? '1' : '0'); syncFixBtn(); });
 
   /* ---------- 매 프레임 ---------- */
   // 배경색이 고른 맛 색으로 천천히 바뀐다
@@ -2335,7 +2368,18 @@ void main() {
         x = x / (1 + Math.abs(x) * 1.0);
         const lim = stretchLimit();
         aT = Math.min(1 + clamp(x, -lim * 0.55, lim), (Math.min(W, H) * 0.47) / ball.R);   // 늘려도 화면 밖으로 안 넘치게
-        shape.th = Math.atan2(-(q.y - p.y), q.x - p.x);
+        const th = Math.atan2(-(q.y - p.y), q.x - p.x), mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+        // 두 손가락으로 잡은 채 비틀면 공도 같이 돌고, 같이 밀면 굴러간다 (평면 모양은 안 굴린다)
+        if (stretch.ang != null && (!formOf() || is3D())) {
+          let dth = th - stretch.ang;
+          if (dth > Math.PI) dth -= 2 * Math.PI;
+          if (dth < -Math.PI) dth += 2 * Math.PI;
+          if (Math.abs(dth) > 1e-4) rotO(0, 0, 1, dth);
+          const dx = mx - stretch.mx, dy = my - stretch.my, R = ball.R * 2.2;
+          if (dx || dy) rotO(dy / R, dx / R, 0, Math.hypot(dx, dy) / R);
+        }
+        stretch.ang = th; stretch.mx = mx; stretch.my = my;
+        shape.th = th;
       } else stretch.active = false;
     }
     const fl = bodyFeel();
@@ -2386,6 +2430,16 @@ void main() {
 
     // 왁스 누르고 있는 동안
     if (mode === 'wax') for (const pt of pointers.values()) if (pt.kind === 'press' && pt.wax) waxHold(pt, dt);
+
+    // 찌——: 꾹 누르고 있으면 자국이 넓어지고 깊어지는 동안 작은 마찰음이 끊기지 않게 이어진다
+    if (mode !== 'wax' && !stretch.active) {
+      for (const pt of pointers.values()) {
+        const d = pt.dent;
+        if (pt.kind !== 'press' || !d || !d.active || !pt.mat || pt.mat.kind !== 'soft' || d.hold < 0.22 || d.grow >= 1) continue;
+        const left = 1 - d.grow;
+        grains('creak', 7 + 9 * left, (pt.mat.sound === 'jelly' ? 0.2 : 0.28) * (0.5 + 0.5 * left), dt);
+      }
+    }
 
     // 쫘악: 문지르거나 늘리는 만큼 끈적한 알갱이 소리를 촘촘히 튼다 (왁스 다 깬 뒤에는 바스락)
     let stickRate = 0, stickGain = 0;

@@ -343,9 +343,10 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
     // 목탁: 처음 0.05초에 똑 하고 크게 울었다가 작은 울림이 길게 남는다(살짝 낮은 짝과 맥놀이) + 나무 결의 높은 떨림 + 몸통의 짧은 퉁
     function moktak(oc, f0, tau, br) {
       const D = oc.destination, f = f0 * rnd(0.985, 1.015);
-      ring(oc, f, 0.52, 0.028);
-      ring(oc, f, 0.065, tau);
-      ring(oc, f * rnd(0.905, 0.925), 0.04, tau * 0.85);
+      ring(oc, f, 0.5, 0.045);
+      ring(oc, f, 0.15, tau);
+      ring(oc, f * rnd(0.905, 0.925), 0.07, tau * 0.85);
+      ring(oc, f * 0.5, 0.07, tau * 0.35);   // 빈 통 속 공기가 낮게 웅
       ring(oc, f * rnd(2.66, 2.78), 0.09 * br, 0.045);
       ring(oc, f * rnd(4.05, 4.25), 0.05 * br, 0.022);
       ring(oc, f * rnd(6.1, 6.5), 0.025 * br, 0.012);
@@ -355,33 +356,33 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
       chain(noise(oc, 0, 0.12), filt(oc, 'bandpass', f * 0.5, 2.5), env(oc, 0, 0.12, 0.002, 0.07), D);
     }
     const RECIPES = {
-      mokJadan: [6, 1.4, (oc) => moktak(oc, 520, 0.24, 1.0)],
-      mokHoeyang: [6, 1.2, (oc) => moktak(oc, 610, 0.19, 1.15)],
-      mokHeukdan: [6, 1.5, (oc) => moktak(oc, 465, 0.28, 0.9)],
-      mokWood5: [6, 1.1, (oc) => moktak(oc, 660, 0.16, 1.3)],
-      mokFire5: [6, 1.5, (oc) => moktak(oc, 490, 0.27, 1.05)],
+      mokJadan: [6, 2.4, (oc) => moktak(oc, 360, 0.4, 1.0)],
+      mokHoeyang: [6, 2.0, (oc) => moktak(oc, 430, 0.32, 1.15)],
+      mokHeukdan: [6, 2.6, (oc) => moktak(oc, 320, 0.45, 0.9)],
+      mokWood5: [6, 1.9, (oc) => moktak(oc, 470, 0.3, 1.3)],
+      mokFire5: [6, 2.6, (oc) => moktak(oc, 340, 0.44, 1.05)],
       // 옹기: 흙그릇 속 공기가 낮게 통 + 구운 흙의 짧은 챙
-      mokClay: [6, 0.5, (oc) => {
+      mokClay: [6, 0.8, (oc) => {
         const D = oc.destination, k = rnd(0.97, 1.03);
-        ring(oc, 360 * k, 0.4, 0.05); ring(oc, 395 * k, 0.12, 0.04);
+        ring(oc, 280 * k, 0.4, 0.09); ring(oc, 307 * k, 0.12, 0.07);
         ring(oc, 1480 * k, 0.16, 0.028); ring(oc, 2950 * k, 0.1, 0.014); ring(oc, 4300 * k, 0.05, 0.008);
         chain(noise(oc, 0, 0.01), filt(oc, 'bandpass', rnd(1800, 2400), 0.9), env(oc, 0, 0.45, 0.0004, 0.006), D);
         chain(noise(oc, 0, 0.08), filt(oc, 'lowpass', 600, 0.7), env(oc, 0, 0.25, 0.002, 0.05), D);
       }],
       // 방짜 놋쇠: 종처럼 어긋난 배음이 땡 하고 길게
-      mokBrass: [4, 2.6, (oc) => {
-        const D = oc.destination, f = rnd(735, 750);
+      mokBrass: [4, 3.2, (oc) => {
+        const D = oc.destination, f = rnd(515, 530);
         [[1, 0.32, 0.95], [1.006, 0.14, 0.85], [2.32, 0.2, 0.5], [4.25, 0.11, 0.24], [6.63, 0.05, 0.12]].forEach(([m, a, t]) => ring(oc, f * m, a, t));
         ring(oc, f * 0.5, 0.12, 0.03);
         chain(noise(oc, 0, 0.008), filt(oc, 'highpass', 3000, 0.7), env(oc, 0, 0.35, 0.0003, 0.004), D);
       }],
       // 남빛 유리: 물방울 똑(높이가 툭 떨어짐) + 맑은 유리 울림
-      mokWater: [6, 1.0, (oc) => {
+      mokWater: [6, 1.6, (oc) => {
         const D = oc.destination;
-        const o = osc(oc, 'sine', rnd(1500, 1700), rnd(650, 760), 0.002, 0.03);
+        const o = osc(oc, 'sine', rnd(1100, 1250), rnd(480, 560), 0.002, 0.035);
         chain(o, env(oc, 0, 0.42, 0.002, 0.06), D); o.start(0); o.stop(0.12);
-        const f = rnd(1750, 1900);
-        ring(oc, f, 0.16, 0.22); ring(oc, f * 2.41, 0.07, 0.08); ring(oc, f * 0.5, 0.1, 0.06);
+        const f = rnd(1250, 1350);
+        ring(oc, f, 0.16, 0.36); ring(oc, f * 2.41, 0.07, 0.08); ring(oc, f * 0.5, 0.1, 0.06);
         chain(noise(oc, 0, 0.006), filt(oc, 'highpass', 4000, 0.7), env(oc, 0, 0.25, 0.0003, 0.003), D);
         bubble(oc, rnd(0.04, 0.08), rnd(900, 1300));
       }],
@@ -523,7 +524,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
       master = ctx.createGain(); master.gain.value = on ? 1 : 0;
       master.connect(comp); comp.connect(ctx.destination);
       const conv = ctx.createConvolver(); conv.buffer = makeIR(ctx);
-      const wet = ctx.createGain(); wet.gain.value = 0.2;
+      const wet = ctx.createGain(); wet.gain.value = 0.26;
       master.connect(conv); conv.connect(wet); wet.connect(comp);
     }
     function unlock() {
@@ -1156,7 +1157,7 @@ void main() {
     if (M.mat === 1) g = Sound.play('mokJelly', { gain: 0.8 + 0.2 * strength, rate: rnd(0.96, 1.05) });
     else if (part === 'handle' && M.mat === 0) g = Sound.play('mokHandle', { gain: 0.8, rate: rnd(0.96, 1.04) });
     else g = Sound.play(M.sound, { gain: (part === 'handle' ? 0.45 : 0.72) + 0.28 * strength, rate: rnd(0.992, 1.008) * (1 + (0.4 - pt[1]) * 0.015) });
-    if (g) { Sound.choke(mokVoice, M.choke || 0.035); mokVoice = g; }
+    if (g) { Sound.choke(mokVoice, M.choke || 0.08); mokVoice = g; }
     if (!auto) tick();
     buzz(part === 'handle' ? 8 : M.buzz);
     // 공덕
@@ -1195,7 +1196,7 @@ void main() {
      두 방식은 p 가 정수일 때 모양이 같아서, rig 는 정수에서만 바꾼다. */
   const N_BEAD = 18, M_EL = 19, RB = 1, RG = 1.3, GAP = 2.2;
   const LOOP = 2 * RG + N_BEAD * 2 * RB + GAP, RR = LOOP / (2 * Math.PI), S_GAP = RR * Math.PI / 2;
-  const PSI = 38 * Math.PI / 180;
+  const PSI = 20 * Math.PI / 180;
   const E1 = [Math.cos(PSI), 0, Math.sin(PSI)], E2 = [0, 1, 0];
   const dLen = (k) => (k === 0 ? 2 * RG : 2 * RB);
   const ktOf = (n) => mod(M_EL - 1 - n, M_EL);
