@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>말랑 놀잇감</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Song+Myung&display=swap">
+<style>
+/* 테스트용 입구: 놀잇감 두 개로 가는 카드 */
+:root {
+  color-scheme: light;
+  --paper: #f5efe6;
+  --ink: #18181b;
+  --ink-soft: #71717a;
+  --card: rgba(255, 255, 255, 0.82);
+  --line: rgba(24, 24, 27, 0.1);
+  --brand: #ff1f66;
+  --display: "Song Myung", "AppleMyungjo", "Nanum Myeongjo", serif;
+  --body: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body);
+  display: flex; flex-direction: column; justify-content: center; gap: 20px;
+  padding-block: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+h1 { margin: 0; text-align: center; font-family: var(--display); font-weight: 400; font-size: 2rem; }
+.sub { margin: 0; text-align: center; color: var(--ink-soft); font-size: 0.875rem; }
+.list { display: grid; gap: 12px; width: min(100%, 420px); margin: 0 auto; }
+a.card {
+  display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: inherit;
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px 20px;
+}
+a.card:active { transform: scale(0.98); }
+a.card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.card b { font-family: var(--display); font-weight: 400; font-size: 1.35rem; }
+.card span { color: var(--ink-soft); font-size: 0.875rem; line-height: 1.5; }
+.note { margin: 0; text-align: center; color: var(--ink-soft); font-size: 0.75rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>말랑 놀잇감</h1>
+  <p class="sub">테스트용이에요. 폰에서 열어 보세요.</p>
+  <div class="list">
+    <a class="card" href="malang.html"><b>말랑 공방</b><span>말랑이 · 오행 · 왁스볼 · 키캡 · 던지기</span></a>
+    <a class="card" href="moktak.html"><b>목탁 염주</b><span>목탁 치기 · 염주 넘기기 · 오행 재질</span></a>
+  </div>
+  <p class="note">소리는 화면을 한 번 누른 뒤부터 나요.<br>진동은 안드로이드와 iOS 18 이상 아이폰에서 돼요.</p>
+</body>
+</html>

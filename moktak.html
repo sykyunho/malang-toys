@@ -1,0 +1,1797 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui}[hidden]{display:none!important}</style></head><body><title>목탁 염주</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Song+Myung&display=swap">
+<style>
+/* 한 화면짜리 법당 놀잇감. 위는 이름·도구·공덕 수, 아래는 재질 고르기 위에 어두운 유리 탭바.
+   결: zinc 무채색 글자, 브랜드 핑크 강조, 둥근 유리 탭바. 바탕은 밝은 한지 한 가지로만 그린다. */
+:root {
+  color-scheme: light;
+  --paper: #f3ebdd;
+  --ink: #18181b;
+  --ink-soft: #71717a;
+  --ink-mute: #a1a1aa;
+  --on-ink: #fafafa;
+  --glass: rgba(255, 255, 255, 0.74);
+  --glass-strong: rgba(255, 255, 255, 0.96);
+  --line: rgba(24, 24, 27, 0.1);
+  --night: rgba(18, 18, 18, 0.66);
+  --night-line: rgba(244, 244, 245, 0.42);
+  --brand: #ff1f66;
+  --gold: #a8740a;
+  --display: "Song Myung", "AppleMyungjo", "Nanum Myeongjo", serif;
+  --body: "Pretendard", "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#app { position: relative; height: 100%; overflow: hidden; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#gl { touch-action: none; outline: none; }
+#fx { pointer-events: none; z-index: 1; }
+
+.top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-block: 12px 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+.top > * { pointer-events: auto; }
+h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55rem; letter-spacing: -0.02em; color: var(--ink); }
+.tools { display: flex; gap: 6px; }
+.pill {
+  font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--ink);
+  background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 12px; cursor: pointer; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.pill[aria-pressed="false"] { color: var(--ink-soft); }
+.pill:active, .chip:active, .tab:active, .seg button:active { transform: scale(0.96); }
+.pill:focus-visible, .tab:focus-visible, .chip:focus-visible, .seg button:focus-visible, #gl:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* 공덕 수: 이름 아래 가운데. 숫자는 제목과 같은 명조 */
+.count {
+  position: absolute; left: 0; right: 0; top: 54px; z-index: 2;
+  display: flex; flex-direction: column; align-items: center;
+  pointer-events: none; text-align: center;
+}
+.count-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; color: var(--ink-soft); }
+.count-num { font-family: var(--display); font-weight: 400; font-size: 2.75rem; line-height: 1.12; color: var(--ink); font-variant-numeric: tabular-nums; }
+.count-num.bump { animation: bump 0.22s ease-out; }
+@keyframes bump { from { transform: scale(1.14); } to { transform: scale(1); } }
+.count-sub { font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* 알림 한 줄: 칩처럼 어두운 유리 */
+.status {
+  position: absolute; left: 50%; top: 150px; transform: translateX(-50%); z-index: 3;
+  font-size: 0.8125rem; font-weight: 600; color: var(--on-ink);
+  background: var(--night); border: 1px solid var(--night-line); border-radius: 999px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  padding: 6px 14px; width: max-content; max-width: calc(100% - 32px); text-align: center; pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.status.gone { opacity: 0; }
+
+/* 친 자리에서 떠오르는 "공덕 +1" */
+.floats { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.plus {
+  position: absolute; transform: translate(-50%, -100%);
+  font-size: 0.9375rem; font-weight: 800; color: var(--brand); white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 10px rgba(255, 255, 255, 0.85);
+  animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.plus.gold { color: var(--gold); }
+@keyframes rise {
+  0% { opacity: 0; transform: translate(-50%, -70%) scale(0.86); }
+  14% { opacity: 1; transform: translate(-50%, -110%) scale(1.04); }
+  100% { opacity: 0; transform: translate(-50%, -300%) scale(1); }
+}
+.fallback {
+  position: absolute; left: 0; right: 0; top: 40%; z-index: 3; text-align: center; font-size: 1rem; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.dock {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding-block: 0 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+.dock > * { pointer-events: auto; }
+.hint {
+  margin: 0; text-align: center; font-size: 0.8125rem; font-weight: 500; color: var(--ink-soft);
+  text-wrap: balance; transition: opacity 0.6s ease; pointer-events: none;
+}
+.hint.gone { opacity: 0; }
+
+/* 재질 고르기: 흰 유리 칩, 고른 칩은 브랜드 핑크 테 */
+.chips {
+  display: flex; gap: 8px; max-width: 100%; overflow-x: auto; padding: 2px 2px 4px;
+  scrollbar-width: none; touch-action: pan-x;
+}
+.chips::-webkit-scrollbar { display: none; }
+.chips > :first-child { margin-left: auto; }
+.chips > :last-child { margin-right: auto; }
+.chip {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
+  font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--ink);
+  background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 13px 5px 5px; cursor: pointer; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.chip[aria-pressed="true"] { background: var(--glass-strong); border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.swatch { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset -3px -4px 6px rgba(0, 0, 0, 0.18), inset 3px 3px 5px rgba(255, 255, 255, 0.5); }
+
+.segs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--glass); border: 1px solid var(--line); border-radius: 999px; }
+.seg[hidden] { display: none; }
+.seg button {
+  font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft);
+  background: transparent; border: 0; border-radius: 999px; padding: 5px 16px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+
+/* 종류 탭: 아래 탭바처럼 둥근 어두운 유리. 고른 탭은 아이콘이 핑크로 */
+.tabs {
+  display: flex; width: min(100%, 300px); padding: 7px; gap: 2px;
+  background: var(--night); border: 1px solid var(--night-line); border-radius: 32px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.tab {
+  position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font: inherit; font-size: 0.75rem; font-weight: 600; color: var(--ink-mute);
+  background: transparent; border: 0; border-radius: 24px; padding: 7px 4px 6px; cursor: pointer;
+}
+.tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-selected="true"] { color: var(--on-ink); background: rgba(255, 255, 255, 0.1); }
+.tab[aria-selected="true"] svg { stroke: var(--brand); }
+@media (max-width: 380px) { h1 { font-size: 1.35rem; } .pill { padding: 6px 9px; font-size: 0.75rem; } .count-num { font-size: 2.35rem; } }
+@media (prefers-reduced-motion: reduce) { .hint, .status { transition: none; } .count-num.bump { animation: none; } }
+</style>
+
+<div id="app">
+  <canvas id="gl" tabindex="0" aria-label="목탁. 누르면 똑 소리가 나요. 키보드에서는 스페이스로 쳐요."></canvas>
+  <canvas id="fx" aria-hidden="true"></canvas>
+  <div class="floats" id="floats" aria-hidden="true"></div>
+  <header class="top">
+    <h1>목탁 염주</h1>
+    <div class="tools">
+      <button class="pill" id="soundBtn" type="button" aria-pressed="true">소리 켬</button>
+      <button class="pill" id="resetBtn" type="button">처음부터</button>
+    </div>
+  </header>
+  <div class="count" id="count">
+    <span class="count-label" id="countLabel">공덕</span>
+    <b class="count-num" id="countNum">0</b>
+    <span class="count-sub" id="countSub">108까지 108번</span>
+  </div>
+  <div class="status gone" id="status" role="status" aria-live="polite"></div>
+  <p class="fallback" id="fallback" hidden>이 브라우저에서는 WebGL을 쓸 수 없어서 그릴 수 없어요.<br>사파리나 크롬 최신 버전에서 열어 주세요.</p>
+  <nav class="dock" aria-label="놀잇감 고르기">
+    <p class="hint" id="hint">톡 치면 똑 · 꾹 누르고 있으면 저절로 똑똑</p>
+    <div class="segs">
+      <div class="seg" id="setSeg" role="group" aria-label="재질 묶음">
+        <button type="button" id="setBasic" aria-pressed="true">기본</button>
+        <button type="button" id="setFive" aria-pressed="false">오행</button>
+      </div>
+      <div class="seg" id="malaSeg" role="group" aria-label="염주 돌리는 법" hidden>
+        <button type="button" id="segCalm" aria-pressed="true">한 알씩</button>
+        <button type="button" id="segFree" aria-pressed="false">굴리기</button>
+      </div>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="재질 고르기"></div>
+    <div class="tabs" role="tablist" aria-label="종류">
+      <button class="tab" role="tab" id="tab-moktak" type="button" aria-selected="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 5.5c3.6 0 6.3 2.9 6.3 6.6s-2.7 6.4-6.3 6.4c-2.3 0-4.2-1.1-5.3-2.8"/><path d="M8.9 15.7a3.1 3.1 0 1 1-1.2-5.9c.5-.1 1 0 1.4.2C10 7.3 11.9 5.5 14.2 5.5"/><path d="M15.4 12.8h5"/></svg>목탁</button>
+      <button class="tab" role="tab" id="tab-mala" type="button" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="3.6" r="1.6"/><circle cx="17.2" cy="5.6" r="1.6"/><circle cx="19.3" cy="10.6" r="1.6"/><circle cx="17.2" cy="15.6" r="1.6"/><circle cx="6.8" cy="15.6" r="1.6"/><circle cx="4.7" cy="10.6" r="1.6"/><circle cx="6.8" cy="5.6" r="1.6"/><circle cx="12" cy="17.8" r="2.1"/><path d="M12 19.9v2.4M10.6 22.2l1.4-1.6 1.4 1.6"/></svg>염주</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------- 작은 도구 ---------- */
+  const $ = (id) => document.getElementById(id);
+  const app = $('app'), glc = $('gl'), fxc = $('fx');
+  const hintEl = $('hint'), statusEl = $('status'), soundBtn = $('soundBtn'), resetBtn = $('resetBtn');
+  const chipsEl = $('chips'), segEl = $('malaSeg'), segCalm = $('segCalm'), segFree = $('segFree');
+  const tabMok = $('tab-moktak'), tabMala = $('tab-mala');
+  const countEl = $('count'), countLabel = $('countLabel'), countNum = $('countNum'), countSub = $('countSub'), floatsEl = $('floats');
+  const dockEl = document.querySelector('.dock');
+  const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const mod = (a, n) => ((a % n) + n) % n;
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const len = (a) => Math.sqrt(dot(a, a));
+  const norm = (a) => mul(a, 1 / (len(a) || 1));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 저장이 막힌 브라우저 — 무시 */ } },
+  };
+
+  /* ---------- 재질 ----------
+     목탁: 나무마다 통 울림 높이와 길이가 다르다. 말랑은 젤리라 크게 출렁인다.
+     amp 찌그러짐, tau/hz 되돌아오는 빠르기와 출렁임, dent 친 자리가 들어가는 깊이 */
+  const MOKTAK = [
+    { id: 'jadan', name: '자단', sw: ['#D0573A', '#5C140A'], base: [0.5, 0.12, 0.055], dark: [0.19, 0.035, 0.02], gloss: 0.9, mat: 0,
+      sound: 'mokJadan', amp: 0.085, tau: 0.045, hz: 9, dent: 0.05, buzz: 16 },
+    { id: 'hoeyang', name: '회양목', sw: ['#F4D597', '#B5843F'], base: [0.85, 0.64, 0.36], dark: [0.58, 0.38, 0.17], gloss: 0.55, mat: 0,
+      sound: 'mokHoeyang', amp: 0.08, tau: 0.04, hz: 10, dent: 0.045, buzz: 14 },
+    { id: 'heukdan', name: '흑단', sw: ['#5A4A42', '#0D0A09'], base: [0.075, 0.058, 0.05], dark: [0.2, 0.12, 0.075], gloss: 1.0, mat: 0,
+      sound: 'mokHeukdan', amp: 0.075, tau: 0.04, hz: 10, dent: 0.045, buzz: 18 },
+    { id: 'jelly', name: '말랑', sw: ['#FFD0DE', '#F17FA4'], base: [0.98, 0.58, 0.7], dark: [0.93, 0.4, 0.56], gloss: 0.95, mat: 1,
+      sound: 'mokJelly', amp: 0.15, tau: 0.16, hz: 5.5, dent: 0.12, buzz: [8, 24, 6] },
+  ];
+  /* 오행 목탁: 사주의 다섯 기운마다 재질·소리·손맛이 다르다. mat 셰이더 재질(0 나무 1 젤리 2 주칠 3 옹기 4 놋쇠 5 유리) */
+  const MOKTAK5 = [
+    { id: 'wood5', name: '木 나무', desc: '木 · 녹단 목탁 — 맑고 가볍게 똑', sw: ['#A9CB84', '#3B5A20'], base: [0.45, 0.53, 0.25], dark: [0.18, 0.25, 0.09], gloss: 0.7, mat: 0,
+      sound: 'mokWood5', amp: 0.085, tau: 0.04, hz: 10, dent: 0.05, buzz: 12 },
+    { id: 'fire5', name: '火 불', desc: '火 · 주칠 목탁 — 따뜻하고 힘 있게 똑', sw: ['#FF8A5C', '#A3170C'], base: [0.82, 0.17, 0.07], dark: [0.48, 0.05, 0.03], gloss: 1.0, mat: 2,
+      sound: 'mokFire5', amp: 0.085, tau: 0.045, hz: 9, dent: 0.05, buzz: 18 },
+    { id: 'earth5', name: '土 흙', desc: '土 · 옹기 목탁 — 흙그릇처럼 포근하게 통', sw: ['#F2C66B', '#9A6420'], base: [0.86, 0.63, 0.27], dark: [0.5, 0.32, 0.12], gloss: 0.45, mat: 3,
+      sound: 'mokClay', amp: 0.06, tau: 0.035, hz: 11, dent: 0.03, buzz: 14 },
+    { id: 'metal5', name: '金 쇠', desc: '金 · 방짜 놋쇠 목탁 — 땡 하고 길게 울려요', sw: ['#FFF1B8', '#B88A1E'], base: [0.95, 0.76, 0.36], dark: [0.62, 0.44, 0.13], gloss: 1.0, mat: 4,
+      sound: 'mokBrass', amp: 0.05, tau: 0.05, hz: 12, dent: 0.025, buzz: [8, 30, 8], choke: 0.12 },
+    { id: 'water5', name: '水 물', desc: '水 · 남빛 유리 목탁 — 물방울처럼 똑', sw: ['#86B6F2', '#122A6B'], base: [0.3, 0.55, 0.95], dark: [0.04, 0.1, 0.32], gloss: 1.0, mat: 5,
+      sound: 'mokWater', amp: 0.1, tau: 0.09, hz: 7, dent: 0.06, buzz: [6, 40, 6], choke: 0.05 },
+  ];
+  /* 염주 알: mat 은 셰이더 재질 번호. cord 실 색, tassel 술 색 */
+  const BEADS = [
+    { id: 'jadan', name: '자단', sw: ['#C9563A', '#4E1208'], mat: 0, gloss: 0.75, spec: 70, sound: 'beadWood', cord: [0.42, 0.06, 0.07], tassel: [0.6, 0.07, 0.09] },
+    { id: 'heukdan', name: '흑단', sw: ['#4D403A', '#0B0908'], mat: 1, gloss: 1.0, spec: 110, sound: 'beadEbony', cord: [0.62, 0.45, 0.16], tassel: [0.78, 0.56, 0.2] },
+    { id: 'ok', name: '옥', sw: ['#A9DDB5', '#2E7A54'], mat: 2, gloss: 0.9, spec: 120, sound: 'beadJade', cord: [0.7, 0.52, 0.2], tassel: [0.82, 0.6, 0.24] },
+    { id: 'pearl', name: '진주', sw: ['#FFFFFF', '#D9CFC8'], mat: 3, gloss: 0.7, spec: 60, sound: 'beadPearl', cord: [0.88, 0.84, 0.8], tassel: [0.95, 0.78, 0.84] },
+    { id: 'jelly', name: '말랑', sw: ['#FFE0EB', '#B9A3F2'], mat: 4, gloss: 0.95, spec: 90, sound: 'beadJelly', cord: [1.0, 0.86, 0.9], tassel: [1.0, 0.68, 0.8] },
+  ];
+  /* 오행 염주. mat 10 은 한 줄에 木→火→土→金→水 를 상생 순서로 꿴 것 (알마다 제 기운 소리) */
+  const ELEM_BEAD = [['beadWood', 1.08], ['beadCoral', 1], ['beadAmber', 1], ['beadMetal', 1], ['beadJade', 0.92]];
+  const BEADS5 = [
+    { id: 'mix5', name: '오행', desc: '木→火→土→金→水 상생 순서로 꿰었어요 · 알마다 소리가 달라요', swCss: 'conic-gradient(#5E8E3A 0 20%, #D23A22 0 40%, #E2A93B 0 60%, #ECE8E0 0 80%, #1E3A78 0)',
+      mat: 10, cord: [0.74, 0.54, 0.2], tassel: [0.84, 0.62, 0.24] },
+    { id: 'wood5', name: '木 녹단', desc: '木 · 녹단 알 — 가볍게 딱', sw: ['#A9CB84', '#33501B'], mat: 5, elem: 0, cord: [0.24, 0.36, 0.14], tassel: [0.26, 0.48, 0.22] },
+    { id: 'fire5', name: '火 산호', desc: '火 · 홍산호 알 — 단단하게 딸깍', sw: ['#FF9C84', '#B3261A'], mat: 6, elem: 1, cord: [0.55, 0.08, 0.06], tassel: [0.75, 0.12, 0.08] },
+    { id: 'earth5', name: '土 호박', desc: '土 · 호박 알 — 몽글하게 톡', sw: ['#FFD27A', '#9C4D06'], mat: 7, elem: 2, cord: [0.6, 0.4, 0.12], tassel: [0.85, 0.6, 0.2] },
+    { id: 'metal5', name: '金 은', desc: '金 · 은 알 — 챙 하고 맑게', sw: ['#FFFFFF', '#9EA3AD'], mat: 8, elem: 3, cord: [0.86, 0.85, 0.82], tassel: [0.92, 0.9, 0.86] },
+    { id: 'water5', name: '水 청금석', desc: '水 · 청금석 알 — 깊고 맑게 딸깍', sw: ['#5677D6', '#0D1E5C'], mat: 9, elem: 4, cord: [0.1, 0.16, 0.38], tassel: [0.14, 0.24, 0.55] },
+  ];
+  const BG_TOP = [0.965, 0.94, 0.895], BG_BOT = [0.905, 0.86, 0.785];
+
+  /* ---------- 상태 ---------- */
+  let mode = store.get('mokyeom_mode') === 'mala' ? 'mala' : 'moktak';
+  const LISTS = { moktak: MOKTAK, moktak5: MOKTAK5, mala: BEADS, mala5: BEADS5 };
+  const skin = { moktak: 0, moktak5: 0, mala: 0, mala5: 0 };
+  Object.keys(LISTS).forEach((k) => {
+    const v = parseInt(store.get('mokyeom_skin_' + k) || '', 10);
+    if (v >= 0 && v < LISTS[k].length) skin[k] = v;
+  });
+  const five = { moktak: store.get('mokyeom_five_moktak') === '1', mala: store.get('mokyeom_five_mala') === '1' };
+  const listKey = (m) => m + (five[m] ? '5' : '');
+  const curOf = (m) => LISTS[listKey(m)][skin[listKey(m)]];
+  // 오행 한 줄 염주: 세는 순서대로 木火土金水, 모주는 金
+  const elemOfBead = (k) => (k === 0 ? 3 : (N_BEAD - k) % 5);
+  let malaFree = store.get('mokyeom_mala_free') === '1';
+  let mokCount = Math.max(0, parseInt(store.get('mokyeom_moktak_count') || '0', 10) || 0);
+
+  /* ---------- 소리: 미리 합성해 둔 조각을 바로 튼다 ---------- */
+  const Sound = (() => {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    let ctx = null, master = null, comp = null, on = store.get('mokyeom_sound') !== '0', unlocked = false, silentEl = null;
+    const bank = {};
+
+    function noiseBuf(c, dur) {
+      const n = Math.max(1, Math.ceil(c.sampleRate * dur)), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      return b;
+    }
+    const noise = (oc, t0, dur) => { const s = oc.createBufferSource(); s.buffer = noiseBuf(oc, dur); s.start(t0); return s; };
+    const filt = (oc, type, f, q) => { const b = oc.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q == null ? 0.7 : q; return b; };
+    const sweep = (oc, type, f0, f1, t0, t1, q) => {
+      const b = filt(oc, type, f0, q);
+      b.frequency.setValueAtTime(f0, 0); b.frequency.setValueAtTime(f0, t0); b.frequency.exponentialRampToValueAtTime(f1, t1);
+      return b;
+    };
+    const env = (oc, t0, peak, a, d) => {
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.0001, 0); g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + d);
+      return g;
+    };
+    const chain = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
+    const osc = (oc, type, f0, f1, t0, t1) => {
+      const o = oc.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, 0); o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t1);
+      return o;
+    };
+    // 울림 하나: 치는 순간 솟았다가 tau 로 잦아드는 사인 (나무·돌이 떠는 고유 높이)
+    const ring = (oc, f, amp, tau, t0) => {
+      t0 = t0 || 0;
+      const o = oc.createOscillator(), g = oc.createGain(), end = oc.length / oc.sampleRate;
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0, 0); g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(amp, t0 + 0.0012); g.gain.setTargetAtTime(0, t0 + 0.0012, tau);
+      o.connect(g); g.connect(oc.destination); o.start(t0); o.stop(Math.min(end, t0 + tau * 9));
+    };
+    function bubble(oc, t, f) {
+      const o = osc(oc, 'sine', f, f * 0.55, t, t + 0.04);
+      chain(o, env(oc, t, rnd(0.1, 0.18), 0.004, 0.04), oc.destination);
+      o.start(t); o.stop(t + 0.08);
+    }
+    // 목탁: 처음 0.05초에 똑 하고 크게 울었다가 작은 울림이 길게 남는다(살짝 낮은 짝과 맥놀이) + 나무 결의 높은 떨림 + 몸통의 짧은 퉁
+    function moktak(oc, f0, tau, br) {
+      const D = oc.destination, f = f0 * rnd(0.985, 1.015);
+      ring(oc, f, 0.52, 0.028);
+      ring(oc, f, 0.065, tau);
+      ring(oc, f * rnd(0.905, 0.925), 0.04, tau * 0.85);
+      ring(oc, f * rnd(2.66, 2.78), 0.09 * br, 0.045);
+      ring(oc, f * rnd(4.05, 4.25), 0.05 * br, 0.022);
+      ring(oc, f * rnd(6.1, 6.5), 0.025 * br, 0.012);
+      chain(noise(oc, 0, 0.012), filt(oc, 'bandpass', rnd(2400, 3200), 0.8), env(oc, 0, 0.5 * br, 0.0004, 0.006), D);
+      const o = osc(oc, 'sine', f * 0.34, f * 0.28, 0, 0.05);
+      chain(o, env(oc, 0, 0.22, 0.001, 0.05), D); o.start(0); o.stop(0.2);
+      chain(noise(oc, 0, 0.12), filt(oc, 'bandpass', f * 0.5, 2.5), env(oc, 0, 0.12, 0.002, 0.07), D);
+    }
+    const RECIPES = {
+      mokJadan: [6, 1.4, (oc) => moktak(oc, 520, 0.24, 1.0)],
+      mokHoeyang: [6, 1.2, (oc) => moktak(oc, 610, 0.19, 1.15)],
+      mokHeukdan: [6, 1.5, (oc) => moktak(oc, 465, 0.28, 0.9)],
+      mokWood5: [6, 1.1, (oc) => moktak(oc, 660, 0.16, 1.3)],
+      mokFire5: [6, 1.5, (oc) => moktak(oc, 490, 0.27, 1.05)],
+      // 옹기: 흙그릇 속 공기가 낮게 통 + 구운 흙의 짧은 챙
+      mokClay: [6, 0.5, (oc) => {
+        const D = oc.destination, k = rnd(0.97, 1.03);
+        ring(oc, 360 * k, 0.4, 0.05); ring(oc, 395 * k, 0.12, 0.04);
+        ring(oc, 1480 * k, 0.16, 0.028); ring(oc, 2950 * k, 0.1, 0.014); ring(oc, 4300 * k, 0.05, 0.008);
+        chain(noise(oc, 0, 0.01), filt(oc, 'bandpass', rnd(1800, 2400), 0.9), env(oc, 0, 0.45, 0.0004, 0.006), D);
+        chain(noise(oc, 0, 0.08), filt(oc, 'lowpass', 600, 0.7), env(oc, 0, 0.25, 0.002, 0.05), D);
+      }],
+      // 방짜 놋쇠: 종처럼 어긋난 배음이 땡 하고 길게
+      mokBrass: [4, 2.6, (oc) => {
+        const D = oc.destination, f = rnd(735, 750);
+        [[1, 0.32, 0.95], [1.006, 0.14, 0.85], [2.32, 0.2, 0.5], [4.25, 0.11, 0.24], [6.63, 0.05, 0.12]].forEach(([m, a, t]) => ring(oc, f * m, a, t));
+        ring(oc, f * 0.5, 0.12, 0.03);
+        chain(noise(oc, 0, 0.008), filt(oc, 'highpass', 3000, 0.7), env(oc, 0, 0.35, 0.0003, 0.004), D);
+      }],
+      // 남빛 유리: 물방울 똑(높이가 툭 떨어짐) + 맑은 유리 울림
+      mokWater: [6, 1.0, (oc) => {
+        const D = oc.destination;
+        const o = osc(oc, 'sine', rnd(1500, 1700), rnd(650, 760), 0.002, 0.03);
+        chain(o, env(oc, 0, 0.42, 0.002, 0.06), D); o.start(0); o.stop(0.12);
+        const f = rnd(1750, 1900);
+        ring(oc, f, 0.16, 0.22); ring(oc, f * 2.41, 0.07, 0.08); ring(oc, f * 0.5, 0.1, 0.06);
+        chain(noise(oc, 0, 0.006), filt(oc, 'highpass', 4000, 0.7), env(oc, 0, 0.25, 0.0003, 0.003), D);
+        bubble(oc, rnd(0.04, 0.08), rnd(900, 1300));
+      }],
+      // 손잡이를 치면 빈 통이 안 울려서 짧고 단단한 탁
+      mokHandle: [5, 0.2, (oc) => {
+        const D = oc.destination;
+        ring(oc, rnd(1150, 1300), 0.32, 0.018); ring(oc, rnd(2700, 3000), 0.18, 0.01); ring(oc, rnd(380, 420), 0.25, 0.02);
+        chain(noise(oc, 0, 0.01), filt(oc, 'bandpass', rnd(3000, 3600), 1), env(oc, 0, 0.45, 0.0004, 0.005), D);
+      }],
+      // 말랑 목탁: 뽀옥
+      mokJelly: [6, 0.5, (oc) => {
+        const D = oc.destination;
+        const o = osc(oc, 'sine', rnd(560, 640), rnd(330, 380), 0.004, 0.09);
+        chain(o, env(oc, 0, 0.55, 0.006, 0.16), D); o.start(0); o.stop(0.4);
+        const o2 = osc(oc, 'triangle', rnd(1100, 1250), rnd(700, 800), 0.004, 0.05);
+        chain(o2, env(oc, 0, 0.08, 0.003, 0.06), D); o2.start(0); o2.stop(0.2);
+        chain(noise(oc, 0, 0.12), sweep(oc, 'bandpass', 900, 2200, 0, 0.08, 3), env(oc, 0, 0.12, 0.004, 0.08), D);
+        bubble(oc, rnd(0.05, 0.09), rnd(1000, 1500));
+      }],
+      // 염주 알끼리 부딪는 딱: 작은 나무 구슬은 650·1950Hz 가 아주 짧게 운다
+      beadWood: [8, 0.1, (oc) => {
+        const k = rnd(0.94, 1.06);
+        chain(noise(oc, 0, 0.006), filt(oc, 'bandpass', rnd(2200, 3000), 1.2), env(oc, 0, 0.6, 0.0003, 0.003), oc.destination);
+        ring(oc, 650 * k, 0.45, 0.008); ring(oc, 1950 * k, 0.32, 0.006); ring(oc, 3150 * k, 0.1, 0.004);
+        ring(oc, 430 * k, 0.045, 0.025); ring(oc, 300 * k, 0.045, 0.02);
+      }],
+      beadEbony: [8, 0.1, (oc) => {
+        const k = rnd(0.95, 1.05);
+        chain(noise(oc, 0, 0.006), filt(oc, 'bandpass', rnd(2800, 3600), 1.2), env(oc, 0, 0.7, 0.0003, 0.003), oc.destination);
+        ring(oc, 790 * k, 0.45, 0.007); ring(oc, 2350 * k, 0.26, 0.007); ring(oc, 3800 * k, 0.12, 0.005);
+        ring(oc, 500 * k, 0.07, 0.028); ring(oc, 360 * k, 0.06, 0.02);
+      }],
+      // 옥: 돌끼리 딸깍 — 높고 맑게 조금 더 운다
+      beadJade: [8, 0.14, (oc) => {
+        const k = rnd(0.95, 1.05);
+        chain(noise(oc, 0, 0.004), filt(oc, 'highpass', 6000, 0.7), env(oc, 0, 0.7, 0.0002, 0.002), oc.destination);
+        ring(oc, 3600 * k, 0.3, 0.008); ring(oc, 6100 * k, 0.28, 0.006); ring(oc, 8600 * k, 0.2, 0.005); ring(oc, 2200 * k, 0.02, 0.03);
+        const o = osc(oc, 'sine', 95, 55, 0, 0.03); chain(o, env(oc, 0, 0.1, 0.001, 0.03), oc.destination); o.start(0); o.stop(0.06);
+      }],
+      beadPearl: [8, 0.14, (oc) => {
+        const k = rnd(0.95, 1.05);
+        chain(noise(oc, 0, 0.004), filt(oc, 'highpass', 6500, 0.7), env(oc, 0, 0.35, 0.0002, 0.002), oc.destination);
+        ring(oc, 4300 * k, 0.26, 0.01); ring(oc, 7000 * k, 0.24, 0.007); ring(oc, 9800 * k, 0.14, 0.005); ring(oc, 2600 * k, 0.02, 0.03);
+      }],
+      beadJelly: [6, 0.18, (oc) => {
+        const D = oc.destination;
+        const o = osc(oc, 'sine', rnd(470, 530), rnd(340, 380), 0.003, 0.05);
+        chain(o, env(oc, 0, 0.45, 0.005, 0.07), D); o.start(0); o.stop(0.15);
+        chain(noise(oc, 0, 0.04), filt(oc, 'bandpass', rnd(1100, 1400), 2), env(oc, 0, 0.1, 0.002, 0.03), D);
+      }],
+      // 산호: 단단한 돌보다 조금 낮은 딸깍
+      beadCoral: [8, 0.12, (oc) => {
+        const k = rnd(0.95, 1.05);
+        chain(noise(oc, 0, 0.004), filt(oc, 'highpass', 4500, 0.7), env(oc, 0, 0.6, 0.0002, 0.002), oc.destination);
+        ring(oc, 2600 * k, 0.34, 0.007); ring(oc, 4300 * k, 0.26, 0.005); ring(oc, 6900 * k, 0.14, 0.004); ring(oc, 1500 * k, 0.05, 0.02);
+      }],
+      // 호박(송진이 굳은 것): 가볍고 몽글한 톡
+      beadAmber: [8, 0.1, (oc) => {
+        const k = rnd(0.95, 1.05);
+        chain(noise(oc, 0, 0.005), filt(oc, 'bandpass', 2200, 1), env(oc, 0, 0.35, 0.0003, 0.003), oc.destination);
+        ring(oc, 1150 * k, 0.38, 0.006); ring(oc, 2450 * k, 0.2, 0.004); ring(oc, 540 * k, 0.12, 0.01);
+      }],
+      // 은: 쇠끼리 챙 — 조금 길게 운다
+      beadMetal: [8, 0.35, (oc) => {
+        const k = rnd(0.96, 1.04);
+        chain(noise(oc, 0, 0.004), filt(oc, 'highpass', 6000, 0.7), env(oc, 0, 0.4, 0.0002, 0.002), oc.destination);
+        ring(oc, 3100 * k, 0.26, 0.05); ring(oc, 3100 * k * 1.004, 0.1, 0.045); ring(oc, 5300 * k, 0.2, 0.035); ring(oc, 7900 * k, 0.12, 0.02);
+      }],
+      // 모주(큰 알): 더 낮고 묵직하게
+      beadGuru: [4, 0.25, (oc) => {
+        const k = rnd(0.96, 1.04);
+        chain(noise(oc, 0, 0.008), filt(oc, 'bandpass', 1900, 1), env(oc, 0, 0.5, 0.0004, 0.004), oc.destination);
+        ring(oc, 430 * k, 0.45, 0.014); ring(oc, 1300 * k, 0.3, 0.011); ring(oc, 2300 * k, 0.14, 0.007);
+        const o = osc(oc, 'sine', 170, 120, 0, 0.04); chain(o, env(oc, 0, 0.3, 0.001, 0.05), oc.destination); o.start(0); o.stop(0.12);
+      }],
+      // 엽전 짤랑
+      coin: [4, 0.7, (oc) => {
+        [0, rnd(0.05, 0.08)].forEach((t, i) => {
+          const a = i ? 0.45 : 1, k = rnd(0.97, 1.03);
+          ring(oc, 2350 * k, 0.22 * a, 0.09, t); ring(oc, 3720 * k, 0.18 * a, 0.07, t); ring(oc, 5600 * k, 0.12 * a, 0.05, t); ring(oc, 8100 * k, 0.06 * a, 0.03, t);
+          chain(noise(oc, t, 0.005), filt(oc, 'highpass', 6000, 0.7), env(oc, t, 0.3 * a, 0.0002, 0.002), oc.destination);
+        });
+      }],
+      // 풍경 종: 108 을 채웠을 때·한 바퀴 돌았을 때
+      bell: [2, 3.0, (oc) => {
+        const f = rnd(655, 665);
+        [[1, 0.4, 1.1], [1.004, 0.2, 1.0], [2.76, 0.2, 0.55], [5.4, 0.1, 0.28], [8.93, 0.05, 0.14]].forEach(([m, a, t]) => ring(oc, f * m, a, t));
+        chain(noise(oc, 0, 0.01), filt(oc, 'highpass', 4000, 0.7), env(oc, 0, 0.2, 0.0003, 0.004), oc.destination);
+      }],
+    };
+    function render(dur, build) {
+      return new Promise((resolve) => {
+        if (!OAC) return resolve(null);
+        let oc;
+        try { oc = new OAC(1, Math.ceil(44100 * dur), 44100); build(oc); } catch (e) { return resolve(null); }
+        try {
+          const p = oc.startRendering();
+          if (p && p.then) p.then(resolve, () => resolve(null));
+          else oc.oncomplete = (ev) => resolve(ev.renderedBuffer);
+        } catch (e) { resolve(null); }
+      });
+    }
+    async function prepare() {
+      let total = 0;
+      for (const name of Object.keys(RECIPES)) {
+        const [count, dur, build] = RECIPES[name];
+        bank[name] = [];
+        for (let i = 0; i < count; i++) {
+          const b = await render(dur, build);
+          if (b) { bank[name].push(b); total++; }
+        }
+      }
+      window.__mokSounds = total;
+      window.__mokBank = bank;
+    }
+    // 법당처럼 살짝 긴 울림
+    function makeIR(c) {
+      const n = Math.ceil(c.sampleRate * 1.2), b = c.createBuffer(2, n, c.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const d = b.getChannelData(ch);
+        let y = 0;
+        for (let i = 0; i < n; i++) { y += 0.3 * ((Math.random() * 2 - 1) - y); d[i] = y * Math.pow(1 - i / n, 2.8); }
+      }
+      return b;
+    }
+    function silentUrl() {
+      const n = 4000, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+      const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+      v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+      for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+      return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    }
+    function build() {
+      try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { try { ctx = new AC(); } catch (e2) { ctx = null; return; } }
+      comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -12; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = 0.002; comp.release.value = 0.15;
+      master = ctx.createGain(); master.gain.value = on ? 1 : 0;
+      master.connect(comp); comp.connect(ctx.destination);
+      const conv = ctx.createConvolver(); conv.buffer = makeIR(ctx);
+      const wet = ctx.createGain(); wet.gain.value = 0.2;
+      master.connect(conv); conv.connect(wet); wet.connect(comp);
+    }
+    function unlock() {
+      if (!AC) return;
+      if (!ctx) build();
+      if (!ctx) return;
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
+      // 아이폰 무음 스위치가 켜져 있어도 소리가 나게 재생 세션으로 올린다
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 지원 안 함 */ }
+      if (!silentEl && isIOS && !navigator.audioSession) {
+        try { silentEl = new Audio(silentUrl()); silentEl.loop = true; silentEl.setAttribute('playsinline', ''); silentEl.play().catch(() => {}); } catch (e) { /* 막히면 무음 스위치 영향만 받는다 */ }
+      }
+      unlocked = true;
+    }
+    let pending = null;
+    function play(name, o) {
+      if (ctx && on && unlocked && ctx.state !== 'running') {
+        if (!pending) {
+          pending = { name, o, at: performance.now() };
+          ctx.resume().then(() => { const q = pending; pending = null; if (q && performance.now() - q.at < 300) play(q.name, q.o); }).catch(() => { pending = null; });
+        }
+        return null;
+      }
+      if (!ctx || !on || ctx.state !== 'running') return null;
+      const list = bank[name];
+      if (!list || !list.length) return null;
+      const s = ctx.createBufferSource(), g = ctx.createGain();
+      s.buffer = list[(Math.random() * list.length) | 0];
+      s.playbackRate.value = (o && o.rate) || 1;
+      g.gain.value = o && o.gain != null ? o.gain : 1;
+      s.connect(g); g.connect(master);
+      s.start(ctx.currentTime + ((o && o.delay) || 0));
+      return g;
+    }
+    // 앞 소리 끊기: 새로 치면 앞 울림을 짧게 잡아 똑똑이 뭉개지지 않게 한다
+    function choke(g, tc) {
+      if (!g || !ctx) return;
+      try { g.gain.cancelScheduledValues(ctx.currentTime); g.gain.setTargetAtTime(0, ctx.currentTime, tc); } catch (e) { /* 이미 끝난 소리 */ }
+    }
+    function setOn(v) {
+      on = v; store.set('mokyeom_sound', v ? '1' : '0');
+      if (ctx && master) master.gain.setTargetAtTime(v ? 1 : 0, ctx.currentTime, 0.02);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && ctx && unlocked && ctx.state !== 'running') ctx.resume().catch(() => {});
+    });
+    window.__mokAudio = () => (ctx ? ctx.state : 'none');
+    return { prepare, unlock, play, choke, setOn, isOn: () => on };
+  })();
+
+  /* ---------- 진동: 안드로이드는 vibrate, 아이폰(iOS 18+)은 스위치 토글의 소리 없는 햅틱 ---------- */
+  const canVibrate = typeof navigator.vibrate === 'function';
+  function buzz(p) { if (canVibrate) { try { navigator.vibrate(p); } catch (e) { /* 제스처 밖이면 막힌다 */ } } }
+  let lastTick = 0;
+  function tick(minGap) {
+    if (!isIOS) return;
+    const now = performance.now();
+    if (now - lastTick < (minGap || 25)) return;
+    lastTick = now;
+    try {
+      const label = document.createElement('label'), input = document.createElement('input');
+      label.setAttribute('aria-hidden', 'true'); label.style.display = 'none';
+      input.type = 'checkbox'; input.setAttribute('switch', '');
+      label.appendChild(input); document.head.appendChild(label); label.click(); label.remove();
+    } catch (e) { /* 지원 안 함 */ }
+  }
+
+  /* ---------- WebGL ---------- */
+  const VERT = 'attribute vec2 aPos; void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }';
+  const FRAG = `
+precision highp float;
+uniform vec2 uRes;
+uniform vec2 uCtr;
+uniform float uPx;
+uniform float uFocal;
+uniform vec3 uEye;
+uniform vec3 uFw;
+uniform vec3 uRt;
+uniform vec3 uUp;
+uniform float uMode;
+uniform float uHalo;
+uniform vec3 uBg0;
+uniform vec3 uBg1;
+uniform vec4 uSq;
+uniform vec4 uDent;
+uniform vec4 uMokA;
+uniform vec4 uMokB;
+uniform vec4 uB[19];
+uniform vec4 uBa[19];
+uniform vec4 uCordA[2];
+uniform vec4 uCordB[2];
+uniform vec4 uTas;
+uniform vec3 uTasD;
+uniform vec3 uRingE1;
+uniform vec3 uRingE2;
+uniform vec4 uBeadP;
+uniform vec3 uCordC;
+uniform vec3 uTasC;
+
+const vec3 LIGHT = vec3(-0.5122, 0.7682, 0.3841);
+const vec3 BULB_C = vec3(0.2, 0.0, 0.0);
+const vec3 BULB_R = vec3(1.05, 0.86, 0.95);
+const float BASE_Y = -0.8;
+const float SLIT_Y = -0.12;
+const float FLOOR_Y = -1.1;
+const vec3 CUSH_C = vec3(-0.3, -0.95, 0.05);
+const vec3 CUSH_B = vec3(1.8, 0.15, 1.35);
+
+float hash13(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+float vnoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash13(i), b = hash13(i + vec3(1.0, 0.0, 0.0)), c = hash13(i + vec3(0.0, 1.0, 0.0)), d = hash13(i + vec3(1.0, 1.0, 0.0));
+  float e = hash13(i + vec3(0.0, 0.0, 1.0)), g = hash13(i + vec3(1.0, 0.0, 1.0)), h = hash13(i + vec3(0.0, 1.0, 1.0)), k = hash13(i + vec3(1.0, 1.0, 1.0));
+  return mix(mix(mix(a, b, f.x), mix(c, d, f.x), f.y), mix(mix(e, g, f.x), mix(h, k, f.x), f.y), f.z);
+}
+float fbm(vec3 p) {
+  float a = 0.5, s = 0.0;
+  for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + 7.1; a *= 0.5; }
+  return s;
+}
+
+// 한지 바탕: 위아래 은은한 결 + 가운데 등불 같은 후광
+vec3 paper(vec2 fc) {
+  vec2 uv = fc / uRes;
+  vec3 col = mix(uBg1, uBg0, smoothstep(0.0, 1.0, uv.y));
+  float fib = vnoise(vec3(fc.x * 0.02, fc.y * 0.09, 1.7)) * 0.55 + vnoise(vec3(fc * 0.17, 4.2)) * 0.45;
+  col *= 0.978 + 0.04 * fib;
+  vec2 d = (fc - uCtr) / uHalo;
+  col += vec3(1.0, 0.82, 0.55) * 0.09 * exp(-dot(d, d));
+  vec2 v = uv - 0.5;
+  col *= 1.0 - 0.22 * dot(v, v);
+  return col;
+}
+
+// 나무 결: 길게 흐르는 줄 + 자단 특유의 잔 점
+vec3 woodAlb(vec3 q, vec3 base, vec3 dark) {
+  float w = fbm(q * vec3(1.6, 7.0, 7.0) + vec3(0.0, fbm(q * 2.0) * 1.5, 0.0));
+  float streak = smoothstep(0.42, 0.8, w);
+  float fleck = smoothstep(0.7, 0.9, vnoise(q * vec3(5.0, 40.0, 40.0)));
+  vec3 col = mix(base, dark, streak * 0.75);
+  col = mix(col, dark * 0.7, fleck * 0.45);
+  return col * (0.9 + 0.2 * vnoise(q * 3.0));
+}
+
+// 반짝이는 칠: 날카로운 점 하이라이트 + 창 두 개가 비친 듯한 넓은 반사
+vec3 glossy(vec3 n, vec3 rd, float sh, float ao, float gloss, float spPow) {
+  vec3 v = -rd, h = normalize(LIGHT + v), r = reflect(rd, n);
+  float spec = pow(max(dot(n, h), 0.0), spPow) * sh;
+  float bx = smoothstep(0.78, 0.95, dot(r, vec3(-0.4364, 0.7758, 0.4558))) + 0.6 * smoothstep(0.86, 0.97, dot(r, vec3(0.7171, 0.4610, 0.5225)));
+  float fre = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+  return gloss * (vec3(1.0, 0.97, 0.9) * spec * 1.1 + vec3(1.0, 0.97, 0.92) * bx * mix(0.16, 0.85, fre) * ao + vec3(0.92, 0.86, 0.8) * fre * 0.12 * ao);
+}
+
+/* ---------- 목탁 ---------- */
+float sdEll(vec3 p, vec3 r) { float k0 = length(p / r); float k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / k1; }
+float smin(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+float sdCap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
+float sdRBox(vec3 p, vec3 b, float r) { vec3 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r; }
+
+// 몸통·손잡이 고리를 잇고 속을 파낸 뒤, 앞쪽에 가로 틈(양 끝은 동그란 구멍)을 낸다. y: 0 겉 나무, 1 속
+vec2 mokBody(vec3 p) {
+  float d = sdEll(p - BULB_C, BULB_R);
+  d = max(d, BASE_Y - p.y);
+  vec3 q = p - vec3(-1.5, -0.62, 0.0);
+  float tor = length(vec2(length(q.xz) - 0.44, q.y)) - 0.17;
+  float neck = sdCap(p, vec3(-0.45, -0.22, 0.0), vec3(-1.08, -0.58, 0.0), 0.27);
+  d = smin(d, neck, 0.3);
+  d = smin(d, tor, 0.12);
+  float m = 0.0;
+  float inner = sdEll(p - vec3(0.24, 0.02, 0.0), vec3(0.86, 0.66, 0.77));
+  if (-inner > d) { d = -inner; m = 1.0; }
+  float slit = max(abs(p.y - SLIT_Y) - 0.04, 0.5 - p.x);
+  float holes = min(length(p - vec3(0.5, SLIT_Y, 0.9)), length(p - vec3(0.5, SLIT_Y, -0.9))) - 0.13;
+  float cut = min(slit, holes);
+  if (-cut > d) { d = -cut; m = 1.0; }
+  return vec2(d, m);
+}
+// 세상 자리 → 찌그러지기 전 목탁 자리. 바닥(방석 위)은 그대로 두고 위아래로 눌리며 옆으로 퍼진다
+vec3 mokObj(vec3 p) {
+  float s = uSq.x;
+  p.y = BASE_Y + (p.y - BASE_Y) / (1.0 - s);
+  p.xz = BULB_C.xz + (p.xz - BULB_C.xz) / (1.0 + 0.5 * s);
+  return p;
+}
+vec2 mapMok(vec3 p) {
+  vec3 q = mokObj(p);
+  vec2 b = mokBody(q);
+  vec3 dq = q - uDent.xyz;
+  b.x += uDent.w * exp(-dot(dq, dq) * 9.0);
+  b.x *= min(1.0 - uSq.x, 1.0 + 0.5 * uSq.x);
+  float c = sdRBox(p - CUSH_C, CUSH_B, 0.15);
+  if (c < b.x) return vec2(c, 2.0);
+  return b;
+}
+vec3 nrmMok(vec3 p) {
+  vec2 k = vec2(1.0, -1.0);
+  float e = 0.0012;
+  return normalize(k.xyy * mapMok(p + k.xyy * e).x + k.yyx * mapMok(p + k.yyx * e).x + k.yxy * mapMok(p + k.yxy * e).x + k.xxx * mapMok(p + k.xxx * e).x);
+}
+float marchMok(vec3 ro, vec3 rd, out float mat) {
+  mat = -1.0;
+  vec3 oc = ro - vec3(-0.35, -0.3, 0.0);
+  float b = dot(oc, rd), c = dot(oc, oc) - 7.84, h = b * b - c;
+  if (h < 0.0) return -1.0;
+  h = sqrt(h);
+  float t = max(-b - h, 0.0), t1 = -b + h;
+  for (int i = 0; i < 100; i++) {
+    vec2 r = mapMok(ro + rd * t);
+    if (r.x < 0.0005 * t) { mat = r.y; return t; }
+    t += r.x;
+    if (t > t1) break;
+  }
+  return -1.0;
+}
+float shMok(vec3 ro, vec3 rd) {
+  float res = 1.0, t = 0.03;
+  for (int i = 0; i < 28; i++) {
+    float h = mapMok(ro + rd * t).x;
+    res = min(res, 8.0 * h / t);
+    t += clamp(h, 0.02, 0.25);
+    if (res < 0.01 || t > 4.5) break;
+  }
+  return clamp(res, 0.0, 1.0);
+}
+float aoMok(vec3 p, vec3 n) {
+  float o = 0.0, s = 1.0;
+  for (int i = 1; i <= 5; i++) {
+    float h = 0.02 + 0.07 * float(i);
+    o += (h - mapMok(p + n * h).x) * s;
+    s *= 0.7;
+  }
+  return clamp(1.0 - 2.0 * o, 0.0, 1.0);
+}
+vec3 shadeMok(vec3 p, vec3 n, vec3 rd, float m) {
+  float sh = shMok(p + n * 0.01, LIGHT);
+  float ao = aoMok(p, n);
+  float dif = max(dot(n, LIGHT), 0.0) * sh;
+  vec3 amb = mix(vec3(0.42, 0.36, 0.32), vec3(0.78, 0.73, 0.65), 0.5 + 0.5 * n.y);
+  vec3 v = -rd;
+  if (m > 1.5) {
+    // 방석: 붉은 비단, 윗면엔 금실 마름모, 가장자리엔 금테
+    vec3 q = p - CUSH_C;
+    vec2 u = vec2(q.x + q.z, q.x - q.z) * 1.5;
+    vec2 f = abs(fract(u) - 0.5);
+    float lines = (1.0 - smoothstep(0.015, 0.04, abs(f.x + f.y - 0.42))) * 0.55;
+    float knot = (1.0 - smoothstep(0.04, 0.08, length(f - 0.5))) * 0.7;
+    float top = smoothstep(0.75, 0.95, n.y);
+    float band = smoothstep(0.03, 0.08, q.y) * (1.0 - top);
+    vec3 silk = vec3(0.56, 0.07, 0.11) * (0.92 + 0.12 * vnoise(vec3(q.xz * 40.0, 1.0)));
+    vec3 gold = vec3(0.86, 0.63, 0.26);
+    vec3 alb = mix(silk, gold, clamp((lines * 0.8 + knot) * top + band * 0.9, 0.0, 1.0));
+    vec3 col = alb * (amb * 0.62 * ao + vec3(1.0, 0.95, 0.86) * dif);
+    float sheen = pow(1.0 - max(dot(n, v), 0.0), 2.0);
+    col += vec3(1.0, 0.62, 0.62) * sheen * 0.22 * ao;
+    col += (lines * top + band) * glossy(n, rd, sh, ao, 0.35, 40.0);
+    return col;
+  }
+  vec3 q = mokObj(p);
+  float mat = uMokB.a, metal = 0.0, glow = 0.0;
+  vec3 nn = n, alb;
+  if (mat < 0.5) {
+    alb = woodAlb(q, uMokA.rgb, uMokB.rgb);
+  } else if (mat < 1.5) {
+    // 말랑 목탁: 속이 비치는 분홍 젤리
+    float th = max(dot(n, v), 0.0);
+    alb = mix(uMokB.rgb, uMokA.rgb, 0.4 + 0.6 * th) * (0.95 + 0.1 * vnoise(q * 4.0));
+    glow = 0.22;
+  } else if (mat < 2.5) {
+    // 주칠: 붉은 옻칠 + 군데군데 금박
+    alb = mix(uMokA.rgb, uMokB.rgb, smoothstep(0.35, 0.8, fbm(q * 3.0)) * 0.5);
+    float leaf = smoothstep(0.8, 0.86, vnoise(q * 9.0 + 3.0));
+    alb = mix(alb, vec3(0.96, 0.74, 0.32), leaf);
+    metal = leaf;
+  } else if (mat < 3.5) {
+    // 옹기: 유약이 고인 얼룩 + 철분 점
+    alb = mix(uMokA.rgb, uMokB.rgb, smoothstep(0.4, 0.75, fbm(q * vec3(2.0, 5.0, 2.0))));
+    alb = mix(alb, uMokB.rgb * 0.45, smoothstep(0.8, 0.9, vnoise(q * 30.0)) * 0.6);
+  } else if (mat < 4.5) {
+    // 방짜 놋쇠: 망치로 두드린 자국이 빛을 잘게 튕긴다
+    vec3 hq = q * 11.0;
+    nn = normalize(n + 0.09 * (vec3(vnoise(hq), vnoise(hq + 3.1), vnoise(hq + 7.7)) - 0.5));
+    alb = mix(uMokB.rgb, uMokA.rgb, 0.6 + 0.4 * vnoise(q * 4.0));
+    metal = 1.0;
+  } else {
+    // 남빛 유리: 가운데로 갈수록 맑고, 속에 물결 같은 빛줄기
+    float th = max(dot(n, v), 0.0);
+    alb = mix(uMokB.rgb, uMokA.rgb, pow(th, 1.6) * 0.8);
+    float caus = smoothstep(0.55, 0.9, vnoise(q * vec3(6.0, 2.0, 6.0) + vec3(0.0, fbm(q * 2.0) * 2.0, 0.0)));
+    alb += vec3(0.35, 0.6, 1.0) * caus * 0.35 * th;
+    glow = 0.35;
+  }
+  if (m > 0.5) { alb = vec3(0.06, 0.025, 0.018) + alb * 0.12; metal = 0.0; glow = 0.0; }   // 틈 안쪽은 어두운 빈 통
+  float dif2 = max(dot(nn, LIGHT), 0.0) * sh;
+  vec3 col = alb * (amb * 0.55 * ao + vec3(1.0, 0.95, 0.85) * dif2 * 1.05) * (1.0 - 0.8 * metal);
+  vec3 r = reflect(rd, nn);
+  vec3 envc = mix(vec3(0.5, 0.42, 0.34), vec3(1.0, 0.97, 0.92), smoothstep(-0.4, 0.7, r.y));
+  col += alb * envc * 0.75 * metal * ao;
+  col += alb * glow * pow(1.0 - max(dot(nn, v), 0.0), 1.5) * ao;
+  col += glossy(nn, rd, sh, ao, uMokA.a * (m > 0.5 ? 0.2 : 1.0), 90.0 + 60.0 * metal) * mix(vec3(1.0), alb * 1.3, metal);
+  return col;
+}
+vec3 sceneMok(vec3 ro, vec3 rd, vec2 fc) {
+  vec3 bg = paper(fc);
+  float mat;
+  float t = marchMok(ro, rd, mat);
+  if (t > 0.0) {
+    vec3 p = ro + rd * t;
+    return shadeMok(p, nrmMok(p), rd, mat);
+  }
+  // 바닥은 한지 그대로 두고 그림자만 받는다
+  if (rd.y < 0.0) {
+    vec3 p = ro + rd * ((FLOOR_Y - ro.y) / rd.y);
+    vec2 e = abs(p.xz - CUSH_C.xz) - vec2(1.95, 1.5);
+    float out0 = length(max(e, 0.0));
+    if (out0 < 2.2) {
+      float s = shMok(p + vec3(0.0, 0.01, 0.0), LIGHT);
+      float ao = 0.55 + 0.45 * smoothstep(0.0, 0.7, out0);
+      bg *= mix(0.62, 1.0, s) * mix(1.0, ao, 0.8);
+    }
+  }
+  return bg;
+}
+
+/* ---------- 염주 ---------- */
+float capHit(vec3 ro, vec3 rd, vec3 pa, vec3 pb, float ra) {
+  vec3 ba = pb - pa, oa = ro - pa;
+  float baba = dot(ba, ba), bard = dot(ba, rd), baoa = dot(ba, oa), rdoa = dot(rd, oa), oaoa = dot(oa, oa);
+  float a = baba - bard * bard, b = baba * rdoa - baoa * bard, c = baba * oaoa - baoa * baoa - ra * ra * baba;
+  float h = b * b - a * c;
+  if (h >= 0.0) {
+    float t = (-b - sqrt(h)) / a;
+    float y = baoa + t * bard;
+    if (y > 0.0 && y < baba) return t;
+    vec3 oc = (y <= 0.0) ? oa : ro - pb;
+    b = dot(rd, oc); c = dot(oc, oc) - ra * ra; h = b * b - c;
+    if (h > 0.0) return -b - sqrt(h);
+  }
+  return -1.0;
+}
+vec3 capNrm(vec3 p, vec3 a, vec3 b, float r) {
+  vec3 ba = b - a, pa = p - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return (pa - h * ba) / r;
+}
+float sphShadow(vec3 ro, vec3 rd, vec4 sph) {
+  vec3 oc = ro - sph.xyz;
+  float b = dot(oc, rd), c = dot(oc, oc) - sph.w * sph.w, h = b * b - c;
+  float d = sqrt(max(0.0, sph.w * sph.w - h)) - sph.w;
+  float t = -b - sqrt(max(h, 0.0));
+  return (t < 0.0) ? 1.0 : smoothstep(0.0, 1.0, 3.0 * d / t);
+}
+vec3 pastel(float s) {
+  float k = floor(fract(s) * 5.0);
+  if (k < 0.5) return vec3(1.0, 0.68, 0.79);
+  if (k < 1.5) return vec3(1.0, 0.88, 0.52);
+  if (k < 2.5) return vec3(0.6, 0.9, 0.77);
+  if (k < 3.5) return vec3(0.62, 0.78, 1.0);
+  return vec3(0.8, 0.69, 1.0);
+}
+vec3 beadAlb(vec3 lp, float seed, vec3 n, vec3 v, float mat, float guru) {
+  float th = max(dot(n, v), 0.0);
+  if (mat < 0.5) return woodAlb(lp * vec3(0.45, 0.6, 0.6) + seed * 17.0, vec3(0.52, 0.13, 0.06), vec3(0.2, 0.04, 0.025));
+  if (mat < 1.5) return woodAlb(lp * vec3(0.45, 0.6, 0.6) + seed * 17.0, vec3(0.06, 0.048, 0.043), vec3(0.2, 0.12, 0.075));
+  if (mat < 2.5) {
+    float cl = fbm(lp * 1.8 + seed * 9.0);
+    vec3 c = mix(vec3(0.1, 0.38, 0.25), vec3(0.6, 0.86, 0.66), th * 0.65 + cl * 0.35);
+    return mix(c, vec3(0.9, 0.97, 0.88), smoothstep(0.6, 0.8, cl) * 0.45);
+  }
+  if (mat < 3.5) {
+    float fr = 1.0 - th;
+    vec3 irid = 0.5 + 0.5 * cos(6.2831 * (fr * 1.3 + seed + vec3(0.0, 0.33, 0.67)));
+    return mix(vec3(0.95, 0.93, 0.9), irid, 0.05 + 0.12 * fr);
+  }
+  if (mat < 4.5) { vec3 pc = pastel(seed); return mix(pc * 0.78, min(pc * 1.15, vec3(1.0)), th); }
+  // 木 녹단
+  if (mat < 5.5) return woodAlb(lp * vec3(0.45, 0.6, 0.6) + seed * 17.0, vec3(0.42, 0.5, 0.22), vec3(0.16, 0.23, 0.08));
+  // 火 홍산호: 자라난 결을 따라 옅은 줄
+  if (mat < 6.5) {
+    float g = smoothstep(0.55, 0.85, vnoise(lp * vec3(2.0, 9.0, 9.0) + seed * 11.0));
+    return mix(vec3(0.88, 0.25, 0.15), vec3(1.0, 0.68, 0.58), g * 0.45) * (0.9 + 0.2 * th);
+  }
+  // 土 호박: 꿀빛으로 비치고 작은 기포
+  if (mat < 7.5) {
+    float cl = fbm(lp * 2.0 + seed * 7.0);
+    vec3 c = mix(vec3(0.62, 0.27, 0.03), vec3(1.0, 0.75, 0.28), th * 0.75 + cl * 0.3);
+    return c + vec3(0.25, 0.2, 0.1) * smoothstep(0.86, 0.93, vnoise(lp * 16.0 + seed * 5.0));
+  }
+  // 金 은 (오행 한 줄의 모주는 금)
+  if (mat < 8.5) return guru > 0.5 && uBeadP.x > 9.5 ? vec3(0.98, 0.78, 0.36) : vec3(0.86, 0.87, 0.9);
+  // 水 청금석: 짙은 남색 + 흰 방해석 줄 + 금빛 황철석 알갱이
+  float f = fbm(lp * 2.4 + seed * 9.0);
+  vec3 c = mix(vec3(0.06, 0.12, 0.42), vec3(0.2, 0.34, 0.78), smoothstep(0.35, 0.75, f));
+  c = mix(c, vec3(0.8, 0.82, 0.88), smoothstep(0.72, 0.85, f) * 0.35);
+  return mix(c, vec3(0.98, 0.82, 0.42), smoothstep(0.84, 0.9, vnoise(lp * 20.0 + seed * 13.0)));
+}
+vec2 matGloss(float m) {
+  if (m < 0.5) return vec2(0.75, 70.0);
+  if (m < 1.5) return vec2(1.0, 110.0);
+  if (m < 2.5) return vec2(0.9, 120.0);
+  if (m < 3.5) return vec2(0.7, 60.0);
+  if (m < 4.5) return vec2(0.95, 90.0);
+  if (m < 5.5) return vec2(0.7, 70.0);
+  if (m < 6.5) return vec2(0.9, 100.0);
+  if (m < 7.5) return vec2(0.9, 110.0);
+  if (m < 8.5) return vec2(1.0, 160.0);
+  return vec2(0.85, 110.0);
+}
+// 염주 그림자를 한지에 은은하게 드리운다
+float ringShadow(vec2 fc) {
+  float s = 0.0;
+  for (int i = 0; i < 19; i++) {
+    vec3 c = uB[i].xyz - uEye;
+    float z = dot(c, uFw);
+    vec2 sp = uCtr + uPx * uFocal * vec2(dot(c, uRt), dot(c, uUp)) / z;
+    float r = uB[i].w * uPx * uFocal / z;
+    vec2 d = (fc - sp - vec2(0.35, -0.6) * r) / (r * 1.25);
+    s += exp(-dot(d, d));
+  }
+  return 1.0 - 0.17 * clamp(s, 0.0, 1.0);
+}
+vec3 sceneMala(vec3 ro, vec3 rd, vec2 fc) {
+  float tMin = 1e9, kind = -1.0, cr = 0.0;
+  vec4 hc = vec4(0.0), ha = vec4(0.0);
+  vec3 ca = vec3(0.0), cb = vec3(0.0);
+  for (int i = 0; i < 19; i++) {
+    vec4 b = uB[i];
+    vec3 oc = ro - b.xyz;
+    float bb = dot(oc, rd), c = dot(oc, oc) - b.w * b.w, h = bb * bb - c;
+    if (h > 0.0) {
+      float t = -bb - sqrt(h);
+      if (t > 0.0 && t < tMin) { tMin = t; hc = b; ha = uBa[i]; kind = 0.0; }
+    }
+  }
+  for (int j = 0; j < 2; j++) {
+    if (uCordA[j].w > 0.0) {
+      float t = capHit(ro, rd, uCordA[j].xyz, uCordB[j].xyz, uCordA[j].w);
+      if (t > 0.0 && t < tMin) { tMin = t; kind = 1.0; ca = uCordA[j].xyz; cb = uCordB[j].xyz; cr = uCordA[j].w; }
+    }
+  }
+  // 술: 매듭 + 실로 감은 머리 + 늘어진 가닥
+  vec3 K = uTas.xyz, D = uTasD;
+  vec3 P1 = normalize(cross(D, vec3(0.3, 0.1, 1.0)));
+  vec3 P2 = cross(D, P1);
+  {
+    vec3 oc = ro - K;
+    float bb = dot(oc, rd), c = dot(oc, oc) - 0.16, h = bb * bb - c;
+    if (h > 0.0) { float t = -bb - sqrt(h); if (t > 0.0 && t < tMin) { tMin = t; kind = 2.0; ca = K; cb = K; cr = 0.4; } }
+    float t2 = capHit(ro, rd, K + D * 0.3, K + D * 0.95, 0.3);
+    if (t2 > 0.0 && t2 < tMin) { tMin = t2; kind = 2.0; ca = K + D * 0.3; cb = K + D * 0.95; cr = 0.3; }
+  }
+  for (int j = 0; j < 9; j++) {
+    float fj = float(j);
+    float ang = fj * 2.39996 + 0.5;
+    float spr = 0.07 + 0.17 * fract(fj * 0.618 + 0.13);
+    vec3 dj = normalize(D + (P1 * cos(ang) + P2 * sin(ang)) * spr);
+    vec3 a = K + D * 0.8;
+    vec3 b = a + dj * uTas.w * (0.82 + 0.18 * fract(fj * 0.71 + 0.3));
+    float t = capHit(ro, rd, a, b, 0.085);
+    if (t > 0.0 && t < tMin) { tMin = t; kind = 3.0; ca = a; cb = b; cr = 0.085; }
+  }
+  if (kind < 0.0) return paper(fc) * ringShadow(fc);
+  vec3 p = ro + rd * tMin;
+  vec3 v = -rd;
+  vec3 n, alb;
+  float gloss, spPow, bm = -1.0;
+  if (kind < 0.5) {
+    n = (p - hc.xyz) / hc.w;
+    float al = ha.x;
+    vec3 T = cos(al) * uRingE1 - sin(al) * uRingE2;
+    vec3 Nr = sin(al) * uRingE1 + cos(al) * uRingE2;
+    vec3 Bn = cross(T, Nr);
+    vec3 q = n;
+    float cs = cos(ha.z), sn = sin(ha.z);
+    float y0 = dot(q, Nr), z0 = dot(q, Bn);
+    vec3 lp = vec3(dot(q, T), y0 * cs - z0 * sn, y0 * sn + z0 * cs);
+    bm = uBeadP.x > 9.5 ? (ha.w > 0.5 ? 8.0 : 5.0 + floor(ha.y / 10.0)) : uBeadP.x;
+    alb = beadAlb(lp * (ha.w > 0.5 ? 1.3 : 1.0), fract(ha.y), n, v, bm, ha.w);
+    vec2 gs = matGloss(bm);
+    gloss = gs.x; spPow = gs.y;
+  } else if (kind < 1.5) {
+    n = capNrm(p, ca, cb, cr); alb = uCordC; gloss = 0.15; spPow = 20.0;
+  } else if (kind < 2.5) {
+    n = cr > 0.35 ? (p - ca) / cr : capNrm(p, ca, cb, cr);
+    float wrap = 0.5 + 0.5 * sin(dot(p - K, D) * 60.0);
+    alb = uTasC * (0.78 + 0.18 * wrap); gloss = 0.3; spPow = 26.0;
+  } else {
+    n = capNrm(p, ca, cb, cr);
+    alb = uTasC * (0.82 + 0.18 * vnoise(p * 9.0)); gloss = 0.35; spPow = 30.0;
+  }
+  float occ = 0.0, sh = 1.0;
+  for (int i = 0; i < 19; i++) {
+    vec4 b = uB[i];
+    vec3 di = b.xyz - p;
+    float l = length(di);
+    if (l < b.w + 0.003) continue;
+    occ += max(dot(n, di / l), 0.0) * (b.w * b.w) / (l * l);
+    sh = min(sh, sphShadow(p + n * 0.002, LIGHT, b));
+  }
+  float ao = clamp(1.0 - occ * 0.85, 0.0, 1.0);
+  float dif = max(dot(n, LIGHT), 0.0) * sh;
+  vec3 amb = mix(vec3(0.44, 0.39, 0.35), vec3(0.8, 0.75, 0.68), 0.5 + 0.5 * n.y);
+  float metal = (bm > 7.5 && bm < 8.5) ? 1.0 : 0.0;
+  float glow = ((bm > 1.5 && bm < 2.5) || (bm > 3.5 && bm < 4.5) || (bm > 6.5 && bm < 7.5)) ? 0.25 : 0.0;   // 옥·젤리·호박: 속이 비치는 빛
+  vec3 col = alb * (amb * 0.6 * ao + vec3(1.0, 0.96, 0.88) * dif * 0.95) * (1.0 - 0.8 * metal);
+  vec3 r = reflect(rd, n);
+  vec3 envc = mix(vec3(0.5, 0.42, 0.34), vec3(1.0, 0.97, 0.92), smoothstep(-0.4, 0.7, r.y));
+  col += alb * envc * 0.75 * metal * ao;
+  col += alb * glow * pow(1.0 - max(dot(n, v), 0.0), 1.5) * ao;
+  col += glossy(n, rd, sh, ao, gloss, spPow) * mix(vec3(1.0), alb * 1.3, metal);
+  return col;
+}
+
+void main() {
+  vec2 fc = gl_FragCoord.xy;
+  vec3 rd = normalize(uFw * uFocal + uRt * ((fc.x - uCtr.x) / uPx) + uUp * ((fc.y - uCtr.y) / uPx));
+  vec3 col = uMode < 0.5 ? sceneMok(uEye, rd, fc) : sceneMala(uEye, rd, fc);
+  col += (hash13(vec3(fc, 3.1)) - 0.5) / 255.0;
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
+  let gl = null, U = {}, dpr = 1, quality = 1, W = 0, H = 0, forceDraw = true;
+  function initGL() {
+    gl = glc.getContext('webgl', { antialias: false, alpha: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: 'high-performance' })
+      || glc.getContext('experimental-webgl');
+    if (!gl) throw new Error('no-webgl');
+    const sh = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('shader: ' + gl.getShaderInfoLog(s));
+      return s;
+    };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    ['uRes', 'uCtr', 'uPx', 'uFocal', 'uEye', 'uFw', 'uRt', 'uUp', 'uMode', 'uHalo', 'uBg0', 'uBg1', 'uSq', 'uDent', 'uMokA', 'uMokB',
+      'uB', 'uBa', 'uCordA', 'uCordB', 'uTas', 'uTasD', 'uRingE1', 'uRingE2', 'uBeadP', 'uCordC', 'uTasC']
+      .forEach((n) => { U[n] = gl.getUniformLocation(prog, n); });
+    forceDraw = true;
+  }
+
+  /* ---------- 카메라: 셰이더와 똑같은 식으로 화면 점 ↔ 3D 를 오간다 ---------- */
+  const cam = { eye: [0, 0, 10], f: [0, 0, -1], r: [1, 0, 0], u: [0, 1, 0], focal: 3, px: 100, cx: 0, cy: 0, halo: 100 };
+  function lookAt(eye, target) {
+    cam.eye = eye; cam.f = norm(sub(target, eye)); cam.r = norm(cross(cam.f, [0, 1, 0])); cam.u = cross(cam.r, cam.f);
+  }
+  // 3D → 화면(CSS px, 위가 0)
+  function project(P) {
+    const d = sub(P, cam.eye), z = dot(d, cam.f);
+    const x = cam.cx + cam.px * cam.focal * dot(d, cam.r) / z, y = cam.cy + cam.px * cam.focal * dot(d, cam.u) / z;
+    return [x / dpr, H - y / dpr];
+  }
+  function rayDir(clientX, clientY) {
+    const x = (clientX * dpr - cam.cx) / cam.px, y = ((H - clientY) * dpr - cam.cy) / cam.px;
+    return norm(add(add(mul(cam.f, cam.focal), mul(cam.r, x)), mul(cam.u, y)));
+  }
+
+  /* ---------- 목탁: 자바스크립트 판 거리 함수 (누른 자리 찾기용, 셰이더 mokBody 와 같은 식) ---------- */
+  const BULB_C = [0.2, 0, 0], BULB_R = [1.05, 0.86, 0.95], BASE_Y = -0.8, SLIT_Y = -0.12;
+  function sdEll(p, c, r) {
+    const q = [(p[0] - c[0]) / r[0], (p[1] - c[1]) / r[1], (p[2] - c[2]) / r[2]];
+    const q2 = [q[0] / r[0], q[1] / r[1], q[2] / r[2]];
+    const k0 = len(q), k1 = len(q2);
+    return k0 * (k0 - 1) / k1;
+  }
+  const smin = (a, b, k) => { const h = clamp(0.5 + 0.5 * (b - a) / k, 0, 1); return b + (a - b) * h - k * h * (1 - h); };
+  function sdCap(p, a, b, r) { const pa = sub(p, a), ba = sub(b, a), h = clamp(dot(pa, ba) / dot(ba, ba), 0, 1); return len(sub(pa, mul(ba, h))) - r; }
+  function sdRBox(p, c, b, r) {
+    const q = [Math.abs(p[0] - c[0]) - b[0] + r, Math.abs(p[1] - c[1]) - b[1] + r, Math.abs(p[2] - c[2]) - b[2] + r];
+    return len([Math.max(q[0], 0), Math.max(q[1], 0), Math.max(q[2], 0)]) + Math.min(Math.max(q[0], q[1], q[2]), 0) - r;
+  }
+  function mokSD(p) {
+    let d = sdEll(p, BULB_C, BULB_R);
+    d = Math.max(d, BASE_Y - p[1]);
+    const q = [p[0] + 1.5, p[1] + 0.62, p[2]];
+    const tor = Math.hypot(Math.hypot(q[0], q[2]) - 0.44, q[1]) - 0.17;
+    d = smin(d, sdCap(p, [-0.45, -0.22, 0], [-1.08, -0.58, 0], 0.27), 0.3);
+    d = smin(d, tor, 0.12);
+    let m = 0;
+    const inner = sdEll(p, [0.24, 0.02, 0], [0.86, 0.66, 0.77]);
+    if (-inner > d) { d = -inner; m = 1; }
+    const slit = Math.max(Math.abs(p[1] - SLIT_Y) - 0.04, 0.5 - p[0]);
+    const holes = Math.min(len(sub(p, [0.5, SLIT_Y, 0.9])), len(sub(p, [0.5, SLIT_Y, -0.9]))) - 0.13;
+    const cut = Math.min(slit, holes);
+    if (-cut > d) { d = -cut; m = 1; }
+    const c = sdRBox(p, [-0.3, -0.95, 0.05], [1.8, 0.15, 1.35], 0.15);
+    return c < d ? [c, 2] : [d, m];
+  }
+  function pickMok(clientX, clientY) {
+    const rd = rayDir(clientX, clientY), ro = cam.eye;
+    let t = 0;
+    for (let i = 0; i < 120; i++) {
+      const p = add(ro, mul(rd, t)), r = mokSD(p);
+      if (r[0] < 0.002) return { p, mat: r[1] };
+      t += r[0];
+      if (t > 40) break;
+    }
+    return null;
+  }
+
+  /* ---------- 목탁 치기 ---------- */
+  const DEFAULT_HIT = [0.25, 0.85, 0.05];   // 빈 곳을 치면 정수리를 친 걸로
+  const strikes = [];
+  const dent = { pt: DEFAULT_HIT, t: 9, amp: 0 };
+  let mokVoice = null, lastStrikeAt = 0, autoTimer = 0, autoIv = 0, autoPt = null;
+  const sqEnv = (t, M) => (1 - Math.exp(-t / 0.006)) * Math.exp(-t / M.tau) * Math.cos(2 * Math.PI * M.hz * t);
+  function strike(clientX, clientY, auto) {
+    const M = curOf('moktak');
+    let part = 'bulb', pt = DEFAULT_HIT;
+    const hit = clientX == null ? null : pickMok(clientX, clientY);
+    if (hit && hit.mat !== 2) { pt = hit.p; part = hit.p[0] < -0.62 ? 'handle' : 'bulb'; }
+    const now = performance.now(), quick = now - lastStrikeAt < 160;
+    lastStrikeAt = now;
+    const strength = (auto ? 0.85 : 1) * (quick ? 0.9 : 1) * (part === 'handle' ? 0.5 : 1);
+    strikes.push({ t: 0, amp: strength });
+    if (strikes.length > 3) strikes.shift();
+    dent.pt = pt; dent.t = 0; dent.amp = strength;
+    // 소리: 앞 울림은 짧게 잡고 새로 똑
+    let g;
+    if (M.mat === 1) g = Sound.play('mokJelly', { gain: 0.8 + 0.2 * strength, rate: rnd(0.96, 1.05) });
+    else if (part === 'handle' && M.mat === 0) g = Sound.play('mokHandle', { gain: 0.8, rate: rnd(0.96, 1.04) });
+    else g = Sound.play(M.sound, { gain: (part === 'handle' ? 0.45 : 0.72) + 0.28 * strength, rate: rnd(0.992, 1.008) * (1 + (0.4 - pt[1]) * 0.015) });
+    if (g) { Sound.choke(mokVoice, M.choke || 0.035); mokVoice = g; }
+    if (!auto) tick();
+    buzz(part === 'handle' ? 8 : M.buzz);
+    // 공덕
+    mokCount++;
+    store.set('mokyeom_moktak_count', String(mokCount));
+    syncCount(true);
+    const sp = hit && hit.mat !== 2 ? project(pt) : project(DEFAULT_HIT);
+    ripple(sp[0], sp[1], part === 'handle' ? 0.6 : 1);
+    petalBurst(sp[0], sp[1], reduceMotion ? 2 : (part === 'handle' ? 3 : 5), 1);
+    floatText(sp[0], sp[1] - 8, '공덕 +1');
+    if (mokCount % 10 === 0) {
+      coinBurst(sp[0], sp[1], reduceMotion ? 3 : 7);
+      Sound.play('coin', { gain: 0.55, delay: 0.04 });
+      floatText(sp[0] + 34, sp[1] - 30, '금전운 +1', true);
+    }
+    if (mokCount % 108 === 0) celebrate('108번 — 번뇌가 다 씻겼어요');
+    forceDraw = true;
+  }
+  function stopAuto() { clearTimeout(autoTimer); clearInterval(autoIv); autoTimer = 0; autoIv = 0; }
+  function updateMok(dt) {
+    let active = false, s = 0;
+    const M = curOf('moktak');
+    for (const k of strikes) { k.t += dt; if (k.t < 1.2) { s += k.amp * M.amp * sqEnv(k.t, M); active = true; } }
+    while (strikes.length && strikes[0].t >= 1.2) strikes.shift();
+    dent.t += dt;
+    mokState.sq = clamp(s, -0.08, 0.2);
+    mokState.dent = dent.t < 1.2 ? M.dent * dent.amp * Math.max(0, sqEnv(dent.t, M) * 0.6 + 0.4 * Math.exp(-dent.t / M.tau)) : 0;
+    return active || dent.t < 1.2;
+  }
+  const mokState = { sq: 0, dent: 0 };
+
+  /* ---------- 염주: 18알 + 모주 1개가 실에 꿰여 있고, 엄지 자리에만 틈이 있다 ----------
+     p 는 넘긴 알 수(소수). 쓸어내릴 때(rig 0): 넘기는 알이 틈을 혼자 건너가 아래 묶음에 딱 부딪히고(a 지점),
+     그다음엔 그 알이 아래 묶음을 밀어 고리 전체가 한 알만큼 돈다.
+     꾹 잡고 돌릴 때(rig 1): 고리 전체가 손을 따라 끊김 없이 돌고, 틈의 알만 조금 빨리 건너가 정수 지점에서 딱 부딪힌다.
+     두 방식은 p 가 정수일 때 모양이 같아서, rig 는 정수에서만 바꾼다. */
+  const N_BEAD = 18, M_EL = 19, RB = 1, RG = 1.3, GAP = 2.2;
+  const LOOP = 2 * RG + N_BEAD * 2 * RB + GAP, RR = LOOP / (2 * Math.PI), S_GAP = RR * Math.PI / 2;
+  const PSI = 38 * Math.PI / 180;
+  const E1 = [Math.cos(PSI), 0, Math.sin(PSI)], E2 = [0, 1, 0];
+  const dLen = (k) => (k === 0 ? 2 * RG : 2 * RB);
+  const ktOf = (n) => mod(M_EL - 1 - n, M_EL);
+  const aOf = (n) => GAP / (GAP + dLen(ktOf(n)));
+  const seeds = Array.from({ length: M_EL }, (_, i) => ((i * 0.6180339 + 0.137) % 1));
+  const spinBase = new Float32Array(M_EL);
+  const sPos = new Float64Array(M_EL);
+  const mala = { p: 0, target: null, v: 0, drag: null, tasD: [0.4, -0.8, 0.45], wrongShown: false, grabShown: false, samples: [], rig: 0, rigWant: null, press: 0, holdTimer: 0 };
+  const grip = { x: 0, y: 0, a: 0 };
+  {
+    const sp = parseInt(store.get('mokyeom_mala_p') || '0', 10);
+    if (Number.isFinite(sp)) mala.p = sp;
+  }
+  const ringPt = (s) => { const a = s / RR; return [RR * (Math.sin(a) * E1[0] + Math.cos(a) * E2[0]), RR * (Math.sin(a) * E1[1] + Math.cos(a) * E2[1]), RR * (Math.sin(a) * E1[2] + Math.cos(a) * E2[2])]; };
+  function layout(p) {
+    const n = Math.floor(p), u = p - n, kt = ktOf(n), dt = dLen(kt), a = GAP / (GAP + dt);
+    const e = mala.rig ? dt * u : u < a ? 0 : (GAP + dt) * u - GAP;
+    let s = S_GAP + GAP / 2 + e;
+    for (let r = 0; r < M_EL - 1; r++) { const k = mod(r - n, M_EL), d = dLen(k); sPos[k] = s + d / 2; s += d; }
+    sPos[kt] = S_GAP - GAP / 2 - dt / 2 + (GAP + dt) * u;
+    return { n, u, kt };
+  }
+  // 센 알 수: 모주는 세지 않고 한 바퀴 표시만 한다
+  function clacked(p) {
+    if (mala.rig) return Math.floor(p + 1e-9);
+    const n = Math.floor(p);
+    return n + (p - n >= aOf(n) - 1e-9 ? 1 : 0);
+  }
+  const beadsOf = (K) => K - Math.floor(K / M_EL);
+  const roundsOf = (K) => Math.floor(K / M_EL);
+  let clackTimes = [];
+  // 알 소리: 오행 한 줄이면 그 알의 기운 소리, 아니면 재질 소리
+  function beadSound(B, k) {
+    if (B.mat === 10) return ELEM_BEAD[elemOfBead(k)];
+    if (B.elem != null) return ELEM_BEAD[B.elem];
+    return [B.sound, 1];
+  }
+  function clack(n, dir, Kf) {
+    const k = ktOf(n), guru = k === 0, B = curOf('mala');
+    const now = performance.now();
+    clackTimes = clackTimes.filter((t) => now - t < 400); clackTimes.push(now);
+    const fast = clackTimes.length > 4;
+    const [snd, srate] = beadSound(B, k);
+    Sound.play(guru ? 'beadGuru' : snd, { gain: fast ? rnd(0.42, 0.55) : rnd(0.72, 0.88), rate: srate * rnd(0.97, 1.03) });
+    if (guru && snd !== 'beadWood') Sound.play(snd, { gain: 0.5, rate: srate });
+    tick(fast ? 45 : 25);
+    buzz(guru ? [10, 30, 12] : 6);
+    const K = Kf != null ? Kf : clacked(mala.p);
+    if (dir > 0) {
+      if (guru) {
+        const r = roundsOf(K);
+        if (r > 0) { toast(r + '바퀴 돌았어요'); Sound.play('bell', { gain: 0.3 }); }
+      } else {
+        const c = beadsOf(K);
+        if (c > 0 && c % 108 === 0) celebrate('108알 — 번뇌가 다 씻겼어요');
+        const sp = project(ringPt(sPos[k]));
+        petalBurst(sp[0], sp[1], fast || reduceMotion ? 0 : 2, 0.6);
+      }
+    } else if (!mala.wrongShown) {
+      mala.wrongShown = true;
+      toast('위로 올리면 한 알 되돌아가요');
+    }
+    syncCount(dir > 0 && !guru);
+  }
+  function crossings(p0, p1) {
+    if (p1 > p0) {
+      for (let n = Math.floor(p0); n <= Math.floor(p1); n++) {
+        if (mala.rig) { if (n > p0 && n <= p1) clack(n - 1, 1, n); }
+        else { const thr = n + aOf(n); if (p0 < thr && p1 >= thr) clack(n, 1, n + 1); }
+        if (n > p0 && n <= p1) spinBase[ktOf(n - 1)] += 2.2;
+      }
+    } else if (p1 < p0) {
+      for (let n = Math.floor(p0); n > p1; n--) {
+        if (n <= p0) { clack(n, -1); spinBase[ktOf(n - 1)] -= 2.2; }
+      }
+    }
+  }
+  function setMalaP(np) {
+    const p0 = mala.p;
+    mala.p = np;
+    if (np !== p0) crossings(p0, np);
+  }
+  function updateMala(dt) {
+    let busy = false;
+    const dr = mala.drag;
+    if (!dr || dr.kind === 'pending') {
+      if (mala.target != null) {
+        const np = mala.p + (mala.target - mala.p) * (1 - Math.exp(-dt * 16));
+        setMalaP(Math.abs(mala.target - np) < 1e-3 ? mala.target : np);
+        if (mala.p === mala.target) { mala.target = null; store.set('mokyeom_mala_p', String(Math.round(mala.p))); }
+        busy = true;
+      } else if (mala.v) {
+        setMalaP(mala.p + mala.v * dt);
+        mala.v *= Math.exp(-1.6 * dt);
+        if (Math.abs(mala.v) < 1.4) { mala.target = mala.v > 0 ? Math.ceil(mala.p) : Math.floor(mala.p); mala.v = 0; }
+        busy = true;
+      }
+    } else busy = true;
+    if ((!dr || dr.kind === 'pending') && mala.target == null && !mala.v && mala.rig && mala.p === Math.floor(mala.p)) { mala.rig = 0; mala.rigWant = null; }
+    // 잡으면 염주가 살짝 조여 든다 + 손 밑 표시
+    const pt = dr && (dr.kind === 'grab' || dr.kind === 'turn') ? 1 : 0;
+    mala.press += (pt - mala.press) * (1 - Math.exp(-dt * 18));
+    if (Math.abs(mala.press - pt) > 1e-3) busy = true; else mala.press = pt;
+    grip.a = mala.press;
+    if (dr) { grip.x = dr.x; grip.y = dr.y; }
+    // 술은 늦게 따라와 살짝 흔들린다
+    const g = ringPt(sPos[0]);
+    const nr = norm(g);
+    const tgt = norm(add(add(mul(nr, 0.75), [0, -0.85, 0]), [0, 0, 0.35]));
+    const k = 1 - Math.exp(-dt * 9);
+    const prev = mala.tasD;
+    mala.tasD = norm(add(prev, mul(sub(tgt, prev), k)));
+    if (len(sub(mala.tasD, tgt)) > 2e-3) busy = true;
+    return busy;
+  }
+
+  /* ---------- 꽃잎·엽전 (2D 덧그림) ---------- */
+  const fx = fxc.getContext('2d');
+  let fxDpr = 1, fxDirty = false;
+  const parts = [];
+  function sprite(draw) { const c = document.createElement('canvas'); c.width = c.height = 64; draw(c.getContext('2d')); return c; }
+  const PETALS = [['#ffffff', '#f6a5c0'], ['#fff6f9', '#f8c4d6'], ['#fffaf0', '#f3d9a4']].map(([a, b]) => sprite((x) => {
+    const g = x.createLinearGradient(32, 60, 32, 4); g.addColorStop(0, a); g.addColorStop(1, b);
+    x.fillStyle = g; x.beginPath(); x.moveTo(32, 4); x.quadraticCurveTo(60, 30, 32, 60); x.quadraticCurveTo(4, 30, 32, 4); x.fill();
+    x.strokeStyle = 'rgba(200,90,130,0.25)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(32, 10); x.lineTo(32, 54); x.stroke();
+  }));
+  const COIN = sprite((x) => {
+    const g = x.createRadialGradient(24, 22, 4, 32, 32, 30); g.addColorStop(0, '#fff0b0'); g.addColorStop(0.5, '#e7b94a'); g.addColorStop(1, '#a8740a');
+    x.fillStyle = g; x.beginPath(); x.arc(32, 32, 29, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = '#8a5d06'; x.lineWidth = 2.5; x.beginPath(); x.arc(32, 32, 24, 0, Math.PI * 2); x.stroke();
+    x.globalCompositeOperation = 'destination-out'; x.fillRect(25, 25, 14, 14);
+    x.globalCompositeOperation = 'source-over'; x.strokeStyle = '#8a5d06'; x.lineWidth = 2; x.strokeRect(24, 24, 16, 16);
+  });
+  function petalBurst(x, y, n, power) {
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + rnd(-1.25, 1.25), sp = rnd(140, 300) * power;
+      parts.push({ k: 'petal', img: PETALS[(Math.random() * 3) | 0], x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rnd(0, 6.28), vr: rnd(-7, 7),
+        s: rnd(11, 17), t: 0, life: rnd(0.8, 1.15), ph: rnd(0, 6.28), g: 520 });
+    }
+    fxDirty = true;
+  }
+  function coinBurst(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + rnd(-0.9, 0.9), sp = rnd(260, 420);
+      parts.push({ k: 'coin', img: COIN, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 0, vr: rnd(9, 16), s: rnd(13, 17), t: 0, life: 1.1, ph: 0, g: 900 });
+    }
+    fxDirty = true;
+  }
+  function petalRain() {
+    const n = reduceMotion ? 10 : 40;
+    for (let i = 0; i < n; i++) {
+      parts.push({ k: 'petal', img: PETALS[(Math.random() * 3) | 0], x: rnd(0, W), y: rnd(-H * 0.5, -10), vx: rnd(-30, 30), vy: rnd(60, 140), r: rnd(0, 6.28), vr: rnd(-3, 3),
+        s: rnd(12, 20), t: 0, life: rnd(2.6, 3.6), ph: rnd(0, 6.28), g: 40, rain: 1 });
+    }
+    fxDirty = true;
+  }
+  function ripple(x, y, k) { parts.push({ k: 'ring', x, y, t: 0, life: 0.38, s: k }); fxDirty = true; }
+  function updateFx(dt) {
+    if (!parts.length && !fxDirty && grip.a < 0.01) return false;
+    fx.setTransform(fxDpr, 0, 0, fxDpr, 0, 0);
+    fx.clearRect(0, 0, W, H);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const q = parts[i];
+      q.t += dt;
+      if (q.t >= q.life) { parts.splice(i, 1); continue; }
+      const k = q.t / q.life;
+      if (q.k === 'ring') {
+        const e = 1 - Math.pow(1 - k, 3);
+        fx.globalAlpha = (1 - k) * 0.55;
+        fx.strokeStyle = '#fff6e6'; fx.lineWidth = 3 * (1 - k) + 1;
+        fx.beginPath(); fx.arc(q.x, q.y, (14 + 46 * e) * q.s, 0, Math.PI * 2); fx.stroke();
+        continue;
+      }
+      q.vy += q.g * dt;
+      if (q.k === 'petal') {
+        const drag = q.rain ? 0.6 : 2.4;
+        q.vx *= Math.exp(-drag * dt); q.vy = Math.min(q.vy, q.rain ? 110 : 260);
+        q.x += (q.vx + Math.sin(q.t * 5 + q.ph) * 36) * dt;
+      } else q.x += q.vx * dt;
+      q.y += q.vy * dt; q.r += q.vr * dt;
+      fx.globalAlpha = 1 - Math.pow(k, 2.5);
+      fx.save(); fx.translate(q.x, q.y); fx.rotate(q.k === 'petal' ? q.r : 0);
+      const sx = q.k === 'coin' ? Math.cos(q.r) : 1;
+      fx.scale(sx || 0.05, 1);
+      fx.drawImage(q.img, -q.s, -q.s, q.s * 2, q.s * 2);
+      fx.restore();
+    }
+    if (grip.a > 0.01) {
+      // 꾹 잡은 자리: 하얀 번짐 + 핑크 테
+      fx.globalAlpha = grip.a;
+      const g = fx.createRadialGradient(grip.x, grip.y, 4, grip.x, grip.y, 40);
+      g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      fx.fillStyle = g; fx.beginPath(); fx.arc(grip.x, grip.y, 40, 0, Math.PI * 2); fx.fill();
+      fx.strokeStyle = 'rgba(255,31,102,0.6)'; fx.lineWidth = 2;
+      fx.beginPath(); fx.arc(grip.x, grip.y, 24 + 6 * (1 - grip.a), 0, Math.PI * 2); fx.stroke();
+    }
+    fx.globalAlpha = 1;
+    fxDirty = parts.length > 0 || grip.a > 0.01;
+    return fxDirty;
+  }
+  function floatText(x, y, text, gold) {
+    const el = document.createElement('span');
+    el.className = 'plus' + (gold ? ' gold' : '');
+    el.textContent = text;
+    el.style.left = (x + rnd(-14, 14)) + 'px'; el.style.top = y + 'px';
+    floatsEl.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+    while (floatsEl.childElementCount > 10) floatsEl.firstElementChild.remove();
+  }
+  let toastTimer = 0;
+  function toast(text) {
+    statusEl.textContent = text; statusEl.classList.remove('gone');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => statusEl.classList.add('gone'), 1900);
+  }
+  function celebrate(text) {
+    toast(text);
+    Sound.play('bell', { gain: 0.6, delay: 0.08 });
+    buzz([20, 60, 20, 60, 40]);
+    petalRain();
+  }
+
+  /* ---------- 공덕 수 ---------- */
+  function syncCount(bump) {
+    if (mode === 'moktak') {
+      countLabel.textContent = '공덕';
+      countNum.textContent = String(mokCount);
+      const left = 108 - (mokCount % 108);
+      countSub.textContent = mokCount > 0 && left === 108 ? '108번 채웠어요' : '108까지 ' + left + '번';
+    } else {
+      const K = clacked(mala.p), c = Math.max(0, beadsOf(K)), r = Math.max(0, roundsOf(K));
+      countLabel.textContent = '염주';
+      countNum.textContent = String(c);
+      const left = 108 - (c % 108);
+      countSub.textContent = (r + 1) + '바퀴째 · ' + (c > 0 && left === 108 ? '108알 채웠어요' : '108까지 ' + left + '알');
+    }
+    if (bump && !reduceMotion) { countNum.classList.remove('bump'); void countNum.offsetWidth; countNum.classList.add('bump'); }
+  }
+
+  /* ---------- 그리기 ---------- */
+  const bArr = new Float32Array(76), baArr = new Float32Array(76), cordA = new Float32Array(8), cordB = new Float32Array(8);
+  function render() {
+    if (!gl) return;
+    gl.viewport(0, 0, glc.width, glc.height);
+    gl.uniform2f(U.uRes, glc.width, glc.height);
+    gl.uniform2f(U.uCtr, cam.cx, cam.cy);
+    gl.uniform1f(U.uPx, cam.px * (mode === 'mala' ? 1 - 0.014 * mala.press : 1));
+    gl.uniform1f(U.uFocal, cam.focal);
+    gl.uniform3fv(U.uEye, cam.eye); gl.uniform3fv(U.uFw, cam.f); gl.uniform3fv(U.uRt, cam.r); gl.uniform3fv(U.uUp, cam.u);
+    gl.uniform1f(U.uHalo, cam.halo);
+    gl.uniform3fv(U.uBg0, BG_TOP); gl.uniform3fv(U.uBg1, BG_BOT);
+    if (mode === 'moktak') {
+      const M = curOf('moktak');
+      gl.uniform1f(U.uMode, 0);
+      gl.uniform4f(U.uSq, mokState.sq, 0, 0, 0);
+      gl.uniform4f(U.uDent, dent.pt[0], dent.pt[1], dent.pt[2], mokState.dent);
+      gl.uniform4f(U.uMokA, M.base[0], M.base[1], M.base[2], M.gloss);
+      gl.uniform4f(U.uMokB, M.dark[0], M.dark[1], M.dark[2], M.mat);
+    } else {
+      const B = curOf('mala');
+      const { n, u, kt } = layout(mala.p);
+      for (let k = 0; k < M_EL; k++) {
+        const P = ringPt(sPos[k]);
+        bArr.set([P[0], P[1], P[2], k === 0 ? RG : RB], k * 4);
+        baArr.set([sPos[k] / RR, seeds[k] + (B.mat === 10 ? 10 * elemOfBead(k) : 0), spinBase[k] + (k === kt ? u * 2.2 : 0), k === 0 ? 1 : 0], k * 4);
+      }
+      // 틈을 건너는 알 양쪽으로만 실이 보인다
+      const up = mod(M_EL - 2 - n, M_EL), lo = mod(-n, M_EL);
+      const pt = ringPt(sPos[kt]), pu = ringPt(sPos[up]), pl = ringPt(sPos[lo]);
+      cordA.set([pu[0], pu[1], pu[2], 0.13, pt[0], pt[1], pt[2], 0.13]);
+      cordB.set([pt[0], pt[1], pt[2], 0, pl[0], pl[1], pl[2], 0]);
+      gl.uniform1f(U.uMode, 1);
+      gl.uniform4fv(U.uB, bArr); gl.uniform4fv(U.uBa, baArr);
+      gl.uniform4fv(U.uCordA, cordA); gl.uniform4fv(U.uCordB, cordB);
+      const g = ringPt(sPos[0]), D = mala.tasD, K = add(g, mul(D, RG + 0.28));
+      gl.uniform4f(U.uTas, K[0], K[1], K[2], 3.4);
+      gl.uniform3fv(U.uTasD, D);
+      gl.uniform3fv(U.uRingE1, E1); gl.uniform3fv(U.uRingE2, E2);
+      gl.uniform4f(U.uBeadP, B.mat, 0, 0, 0);
+      gl.uniform3fv(U.uCordC, B.cord); gl.uniform3fv(U.uTasC, B.tassel);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /* ---------- 화면 맞춤: 위(공덕 수)와 아래(독) 사이 빈 곳 가운데에 놓는다 ---------- */
+  function placeCamera() {
+    const top = countEl.getBoundingClientRect().bottom + 6;
+    const bottom = dockEl.getBoundingClientRect().top - 4;
+    const avail = Math.max(160, bottom - top);
+    const cy = top + avail * 0.5;
+    cam.cx = (W / 2) * dpr; cam.cy = (H - cy) * dpr;
+    if (mode === 'moktak') {
+      const target = [-0.42, -0.38, 0.05], dir = norm([-0.12, 0.9, 1.0]), D = 9.5;
+      lookAt(add(target, mul(dir, D)), target);
+      cam.focal = 3.2;
+      const fit = Math.min(W * 0.5, avail * 0.62) * dpr;
+      cam.px = fit * D / (2.2 * cam.focal);
+    } else {
+      const target = [0, 0, 0], D = 34;
+      lookAt([0, 3.2, D], target);
+      cam.focal = 3.2;
+      const fit = Math.min(W * 0.5 / (RR * Math.cos(PSI) * 1.15 + 3.0), avail * 0.5 / (RR + 1.6)) * dpr;   // 오른쪽에 술 자리
+      cam.px = fit * D / cam.focal;
+    }
+    cam.halo = Math.min(W, avail) * 0.42 * dpr;
+  }
+  function resize() {
+    W = app.clientWidth; H = app.clientHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2) * quality;
+    glc.width = Math.max(1, Math.round(W * dpr)); glc.height = Math.max(1, Math.round(H * dpr));
+    fxDpr = Math.min(window.devicePixelRatio || 1, 2);
+    fxc.width = Math.round(W * fxDpr); fxc.height = Math.round(H * fxDpr);
+    placeCamera();
+    forceDraw = true;
+  }
+
+  /* ---------- 손가락 ---------- */
+  let hintCount = 0;
+  const HINTS = { moktak: '톡 치면 똑 · 꾹 누르고 있으면 저절로 똑똑', calm: '쓸어내리면 한 알씩 · 동그라미를 그리면 빙글 돌아요', free: '휙 쓸면 굴러가요 · 동그라미를 그리면 빙글 돌아요' };
+  function showHint() { hintEl.textContent = HINTS[mode === 'moktak' ? 'moktak' : malaFree ? 'free' : 'calm']; hintEl.classList.remove('gone'); hintCount = 0; }
+  function noteInteraction() { if (++hintCount >= 4) hintEl.classList.add('gone'); }
+  const gapPx = () => { const a = project(ringPt(S_GAP - 0.5)), b = project(ringPt(S_GAP + 0.5)); return Math.max(8, Math.hypot(a[0] - b[0], a[1] - b[1])); };
+  glc.addEventListener('pointerdown', (e) => {
+    Sound.unlock();
+    noteInteraction();
+    if (mode === 'moktak') {
+      strike(e.clientX, e.clientY, false);
+      stopAuto();
+      const x = e.clientX, y = e.clientY;
+      autoTimer = setTimeout(() => {
+        toast('저절로 똑똑 · 손을 떼면 멈춰요');
+        autoIv = setInterval(() => strike(x, y, true), 520);
+      }, 650);
+      return;
+    }
+    if (mala.drag) return;
+    try { glc.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+    if (mala.target != null) { setMalaP(mala.target); mala.target = null; }
+    mala.v = 0;
+    if (!malaFree) setMalaP(Math.round(mala.p));
+    else if (mala.p !== Math.floor(mala.p)) {
+      // 구르던 중에 잡으면 가까운 알 자리로 짧게 마무리한다 (잡기는 정수 자리에서 시작)
+      const n = Math.floor(mala.p), u = mala.p - n;
+      mala.target = mala.rig ? Math.round(mala.p) : (u >= aOf(n) * 0.55 ? n + 1 : n);
+    }
+    const now = performance.now();
+    mala.drag = { id: e.pointerId, kind: 'pending', x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, start: Math.round(mala.p), ppu: gapPx(), moved: 0, ang: 0, fr: null };
+    mala.samples = [{ t: e.timeStamp || now, p: mala.p }];
+    clearTimeout(mala.holdTimer);
+    mala.holdTimer = setTimeout(() => startGrab(e.pointerId), 280);
+  });
+  // 화면에서 본 고리: 가운데와 가로·세로 반지름 (CSS px)
+  function ringFrame() {
+    const c = project([0, 0, 0]), a = project(mul(E1, RR)), b = project(mul(E2, RR));
+    return { cx: c[0], cy: c[1], rx: Math.max(20, Math.abs(a[0] - c[0])), ry: Math.max(20, Math.abs(b[1] - c[1])) };
+  }
+  function ringAngle(fr, x, y) { const nx = (x - fr.cx) / fr.rx, ny = (y - fr.cy) / fr.ry; return { a: Math.atan2(ny, nx), r: Math.hypot(nx, ny) }; }
+  // 실을 du(단위 길이)만큼 움직인다. 알 한 칸씩 끊어 가며 딱 소리를 내고,
+  // 쓸기↔돌리기 방식(rig)은 정수 자리(두 방식 모양이 같은 곳)에 닿을 때 바꾼다. lo·hi 는 넘지 않는다
+  function moveBy(du, lo, hi) {
+    let guard = 0;
+    while (Math.abs(du) > 1e-9 && guard++ < 200) {
+      const p = mala.p;
+      if (mala.rigWant != null && mala.rig !== mala.rigWant && p === Math.round(p)) mala.rig = mala.rigWant;
+      const n = Math.floor(p), u = p - n;
+      if (du > 0) {
+        if (hi != null && p >= hi) break;
+        const span = (mala.rig ? 0 : GAP) + dLen(ktOf(n)), room = (1 - u) * span;
+        if (du < room) { setMalaP(p + du / span); du = 0; } else { setMalaP(n + 1); du -= room; }
+      } else {
+        if (lo != null && p <= lo) break;
+        let nn = n, uu = u;
+        if (uu <= 0) { nn = n - 1; uu = 1; }
+        const span = (mala.rig ? 0 : GAP) + dLen(ktOf(nn)), room = uu * span;
+        if (-du < room) { setMalaP(nn + uu + du / span); du = 0; } else { setMalaP(nn); du += room; }
+      }
+    }
+  }
+  // 돌리기 시작: 이제부터 손가락이 고리 가운데를 도는 각도만큼 고리 전체가 돈다
+  function startTurn(dr, kind) {
+    dr.kind = kind;
+    dr.fr = ringFrame();
+    dr.ang = ringAngle(dr.fr, dr.x, dr.y).a;
+    mala.rigWant = 1;
+    if (mala.p === Math.round(mala.p)) mala.rig = 1;
+  }
+  function startGrab(id) {
+    const dr = mala.drag;
+    if (mode !== 'mala' || !dr || dr.id !== id || dr.kind !== 'pending') return;
+    if (mala.target != null) { setMalaP(mala.target); mala.target = null; }
+    if (mala.p !== Math.round(mala.p)) setMalaP(Math.round(mala.p));
+    startTurn(dr, 'grab');
+    mala.samples = [{ t: performance.now(), p: mala.p }];
+    // 쥐는 순간: 알들이 서로 눌리며 드륵
+    const [snd, srate] = beadSound(curOf('mala'), 1);
+    Sound.play(snd, { gain: 0.32, rate: 0.92 * srate });
+    Sound.play(snd, { gain: 0.22, rate: 0.96 * srate, delay: 0.035 });
+    tick(); buzz(12);
+    ripple(dr.x, dr.y, 0.8);
+    if (!mala.grabShown) { mala.grabShown = true; toast('잡았어요 · 빙글 돌려 보세요'); }
+    forceDraw = true;
+  }
+  glc.addEventListener('pointermove', (e) => {
+    const dr = mala.drag;
+    if (mode !== 'mala' || !dr || dr.id !== e.pointerId) return;
+    if (dr.kind === 'pending') {
+      const dx0 = e.clientX - dr.x0, dy0 = e.clientY - dr.y0;
+      if (Math.hypot(dx0, dy0) < 8) return;
+      clearTimeout(mala.holdTimer);
+      mala.target = null;
+      dr.x = dr.x0; dr.y = dr.y0;
+      // 옆으로 먼저 움직이거나, 고리 왼쪽 절반(엄지 자리 반대편)에서 시작하면 돌리기.
+      // 왼쪽에선 아래로 내리는 게 고리를 거꾸로 도는 방향이라 쓸기로 받으면 알이 반대로 간다
+      const fr0 = ringFrame(), nx0 = (dr.x0 - fr0.cx) / fr0.rx;
+      if (Math.abs(dx0) > Math.abs(dy0) * 0.8 || nx0 < -0.35) startTurn(dr, 'turn');
+      else { dr.kind = 'pull'; dr.start = Math.round(mala.p); dr.hx = 0; dr.vy = 0; mala.rigWant = 0; }   // 곧게 내리면 쓸기
+    }
+    if (dr.kind === 'pull') {
+      const dy = e.clientY - dr.y, dx = e.clientX - dr.x;
+      dr.hx += Math.abs(dx); dr.vy += Math.abs(dy);
+      // 쓸다가 손가락이 곡선을 그리면 돌리기로 바꾼다 (세로만 보면 원을 그릴 때 알이 왔다 갔다 한다)
+      if (dr.hx > 22 && dr.hx > dr.vy * 0.5) startTurn(dr, 'turn');
+      else {
+        dr.moved += Math.abs(dy);
+        if (malaFree) moveBy(dy / dr.ppu);
+        else moveBy(dy / dr.ppu, dr.start - 1, dr.start + 1);   // 한 번 쓸 때 한 알까지만
+      }
+    }
+    if (dr.kind === 'turn' || dr.kind === 'grab') {
+      // 고리 가운데를 도는 각도만큼 실이 돈다 (가운데 가까이선 각도가 튀니 덜 반영)
+      const ra = ringAngle(dr.fr, e.clientX, e.clientY);
+      let da = ra.a - dr.ang;
+      if (da > Math.PI) da -= 2 * Math.PI;
+      if (da < -Math.PI) da += 2 * Math.PI;
+      dr.ang = ra.a;
+      const w = clamp((ra.r - 0.15) / 0.3, 0, 1);
+      dr.moved += Math.abs(da);
+      moveBy(da * RR * w);
+    }
+    dr.x = e.clientX; dr.y = e.clientY;
+    const now = e.timeStamp || performance.now();
+    mala.samples.push({ t: now, p: mala.p });
+    while (mala.samples.length > 2 && now - mala.samples[0].t > 90) mala.samples.shift();
+    forceDraw = true;
+  });
+  function endDrag(e) {
+    if (mode === 'moktak') { stopAuto(); return; }
+    const dr = mala.drag;
+    if (!dr || dr.id !== e.pointerId) return;
+    clearTimeout(mala.holdTimer);
+    mala.drag = null;
+    mala.rigWant = null;
+    const now = e.timeStamp || performance.now(), s0 = mala.samples[0];
+    const v = s0 && now - s0.t > 8 ? (mala.p - s0.p) / ((now - s0.t) / 1000) : 0;
+    window.__mokFling = { v, kind: dr.kind, dt: s0 ? now - s0.t : 0, n: mala.samples.length, moved: dr.moved };
+    if (dr.kind === 'pending') {
+      // 톡: 한 알씩이면 한 알, 굴리기면 살짝 굴린다
+      if (malaFree) { mala.target = null; mala.v = 7; } else mala.target = Math.round(mala.p) + 1;
+    } else if (dr.kind === 'grab' || dr.kind === 'turn') {
+      if (malaFree && Math.abs(v) >= 1.4) { mala.target = null; mala.v = clamp(v, -28, 28); }
+      else mala.target = v > 2 ? Math.ceil(mala.p) : v < -2 ? Math.floor(mala.p) : Math.round(mala.p);
+    } else if (malaFree) {
+      mala.v = clamp(v, -28, 28);
+      if (Math.abs(mala.v) < 1.4) { mala.v = 0; mala.target = Math.round(mala.p); }
+    } else {
+      const d = mala.p - dr.start;
+      if (d >= 0) mala.target = d >= aOf(dr.start) * 0.55 || v > 2.5 ? dr.start + 1 : dr.start;
+      else mala.target = -d >= (1 - aOf(dr.start - 1)) * 0.55 || v < -2.5 ? dr.start - 1 : dr.start;
+    }
+    forceDraw = true;
+  }
+  glc.addEventListener('pointerup', endDrag);
+  glc.addEventListener('pointercancel', endDrag);
+  glc.addEventListener('lostpointercapture', (e) => { if (mala.drag && mala.drag.id === e.pointerId) endDrag(e); });
+  glc.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (mode === 'moktak' && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); Sound.unlock(); strike(null, null, false); }
+    if (mode === 'mala' && (e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault(); Sound.unlock();
+      const base = mala.target != null ? mala.target : Math.round(mala.p);
+      mala.v = 0; mala.target = base + (e.key === 'ArrowUp' ? -1 : 1);
+    }
+  });
+
+  /* ---------- 고르기 ---------- */
+  function buildChips() {
+    chipsEl.innerHTML = '';
+    const key = listKey(mode), list = LISTS[key];
+    list.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip';
+      b.setAttribute('aria-pressed', String(i === skin[key]));
+      const sw = document.createElement('span');
+      sw.className = 'swatch';
+      sw.style.background = s.swCss || 'radial-gradient(circle at 35% 30%, ' + s.sw[0] + ', ' + s.sw[1] + ')';
+      b.appendChild(sw);
+      b.appendChild(document.createTextNode(s.name));
+      b.addEventListener('click', () => {
+        skin[key] = i; store.set('mokyeom_skin_' + key, String(i));
+        [...chipsEl.children].forEach((c, j) => c.setAttribute('aria-pressed', String(j === i)));
+        Sound.unlock();
+        if (s.desc) toast(s.desc);
+        if (mode === 'moktak') strike(null, null, true);
+        else { mala.v = 0; mala.target = Math.round(mala.p) + 1; }
+        forceDraw = true;
+      });
+      chipsEl.appendChild(b);
+    });
+  }
+  function setMode(m) {
+    if (mode === m) return;
+    stopAuto();
+    clearTimeout(mala.holdTimer); mala.drag = null;
+    mode = m; store.set('mokyeom_mode', m);
+    tabMok.setAttribute('aria-selected', String(m === 'moktak'));
+    tabMala.setAttribute('aria-selected', String(m === 'mala'));
+    segEl.hidden = m !== 'mala';
+    glc.setAttribute('aria-label', m === 'moktak' ? '목탁. 누르면 똑 소리가 나요. 키보드에서는 스페이스로 쳐요.' : '염주. 아래로 쓸면 한 알씩 넘어가고, 꾹 눌러 잡은 채 빙글 돌리면 고리가 돌아요. 키보드에서는 아래 화살표로 넘겨요.');
+    buildChips(); showHint(); syncCount(false); syncSeg();
+    placeCamera();
+    forceDraw = true;
+  }
+  function syncSeg() {
+    segCalm.setAttribute('aria-pressed', String(!malaFree));
+    segFree.setAttribute('aria-pressed', String(malaFree));
+    setBasic.setAttribute('aria-pressed', String(!five[mode]));
+    setFive.setAttribute('aria-pressed', String(five[mode]));
+  }
+  function setFiveOn(v) {
+    if (five[mode] === v) return;
+    five[mode] = v; store.set('mokyeom_five_' + mode, v ? '1' : '0');
+    syncSeg(); buildChips();
+    const s = curOf(mode);
+    if (v) toast(s.desc || '오행 — 木火土金水');
+    forceDraw = true;
+  }
+  const setBasic = $('setBasic'), setFive = $('setFive');
+  setBasic.addEventListener('click', () => setFiveOn(false));
+  setFive.addEventListener('click', () => setFiveOn(true));
+  tabMok.addEventListener('click', () => setMode('moktak'));
+  tabMala.addEventListener('click', () => setMode('mala'));
+  segCalm.addEventListener('click', () => { malaFree = false; store.set('mokyeom_mala_free', '0'); mala.v = 0; mala.target = Math.round(mala.p); syncSeg(); showHint(); });
+  segFree.addEventListener('click', () => { malaFree = true; store.set('mokyeom_mala_free', '1'); syncSeg(); showHint(); });
+  function syncSoundBtn() { const on = Sound.isOn(); soundBtn.setAttribute('aria-pressed', String(on)); soundBtn.textContent = on ? '소리 켬' : '소리 끔'; }
+  soundBtn.addEventListener('click', () => { Sound.unlock(); Sound.setOn(!Sound.isOn()); syncSoundBtn(); });
+  resetBtn.addEventListener('click', () => {
+    if (mode === 'moktak') { mokCount = 0; store.set('mokyeom_moktak_count', '0'); }
+    else { mala.p = 0; mala.v = 0; mala.target = null; mala.rig = 0; spinBase.fill(0); store.set('mokyeom_mala_p', '0'); }
+    syncCount(true);
+    forceDraw = true;
+  });
+
+  /* ---------- 돌리기 ---------- */
+  let last = 0, frames = 0, slowFrames = 0;
+  function frame(now) {
+    const dt = Math.min(0.033, Math.max(0.001, (now - last) / 1000));
+    last = now;
+    const busy = (mode === 'moktak' ? updateMok(dt) : updateMala(dt)) || forceDraw;
+    updateFx(dt);
+    if (busy) {
+      render();
+      forceDraw = false;
+      frames++;
+      if (dt > 0.026) slowFrames++;
+      if (frames >= 45) {
+        if (slowFrames > 30 && quality > 0.55) { quality -= 0.15; resize(); }
+        frames = 0; slowFrames = 0;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- 시작 ---------- */
+  tabMok.setAttribute('aria-selected', String(mode === 'moktak'));
+  tabMala.setAttribute('aria-selected', String(mode === 'mala'));
+  segEl.hidden = mode !== 'mala';
+  syncSeg(); syncSoundBtn(); buildChips(); showHint(); syncCount(false);
+  try { initGL(); } catch (err) {
+    $('fallback').hidden = false;
+    window.__mokError = String(err && err.message || err);
+    console.error(err);
+    return;
+  }
+  glc.addEventListener('webglcontextlost', (e) => { e.preventDefault(); gl = null; });
+  glc.addEventListener('webglcontextrestored', () => { try { initGL(); } catch (err) { $('fallback').hidden = false; } });
+  layout(mala.p);
+  { const g = ringPt(sPos[0]); mala.tasD = norm(add(add(mul(norm(g), 0.75), [0, -0.85, 0]), [0, 0, 0.35])); }
+  resize();
+  window.addEventListener('resize', resize);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(app);
+  requestAnimationFrame((t) => { last = t; frame(t); });
+  Sound.prepare();
+  // 점검용: 그리기 한 장에 드는 시간
+  window.__mokBench = (n) => { const t0 = performance.now(); for (let i = 0; i < n; i++) { render(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } return (performance.now() - t0) / n; };
+  window.__mokPose = (sq, d) => { mokState.sq = sq; mokState.dent = d; dent.pt = DEFAULT_HIT; render(); };
+  window.__mokState = () => ({ mode, p: mala.p, count: mode === 'moktak' ? mokCount : beadsOf(clacked(mala.p)), sq: mokState.sq });
+  window.__mokReady = true;
+})();
+</script>
+</body></html>
