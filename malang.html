@@ -665,23 +665,32 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
     }
     const RECIPES = {
       // 찌—걱: 공기가 빠지는 쥬욱은 작게, 붙었다 미끄러지는 마찰이 부드럽게 들어와 커지며 빨라지고(찌—), 끝에 낮고 굵게 한 번 걸린다(걱)
-      squelch: [8, 0.55, (oc) => {
+      squelch: [8, 1.2, (oc) => {
         const D = oc.destination;
-        chain(noise(oc, 0, 0.5), sweep(oc, 'bandpass', rnd(1400, 1900), rnd(480, 620), 0, 0.35, 1.0), env(oc, 0, rnd(0.22, 0.3), 0.06, rnd(0.28, 0.36)), D);
-        const bp = filt(oc, 'bandpass', rnd(950, 1300), rnd(6, 9)), g = oc.createGain();
-        g.gain.value = 3.0; bp.connect(g); g.connect(D);
-        const end = rnd(0.28, 0.36), f0 = rnd(22, 30), f1 = rnd(55, 75);
-        let t = rnd(0.005, 0.015);
+        // 치익(공기)은 작고 짧게 — 중요한 건 그다음 찌이익
+        chain(noise(oc, 0, 0.25), sweep(oc, 'bandpass', rnd(1500, 1900), rnd(700, 900), 0, 0.2, 1.0), env(oc, 0, rnd(0.1, 0.14), 0.02, 0.2), D);
+        // 찌이익: 붙었다 미끄러지는 마찰 떨림이 0.15초쯤 차올라 0.9초 남짓 크게 이어지고, 떨림이 천천히 빨라지며 늘어진다
+        const fq = rnd(950, 1250);
+        const bp = filt(oc, 'bandpass', fq, rnd(8, 11)), g = oc.createGain();
+        g.gain.value = 4.2; bp.connect(g); g.connect(D);
+        const bpH = filt(oc, 'bandpass', fq * rnd(1.85, 2.0), 6), gH = oc.createGain();   // 위쪽 떨림을 겹쳐 두텁게
+        gH.gain.value = 1.5; bpH.connect(gH); gH.connect(D);
+        const end = rnd(0.85, 1.0), f0 = rnd(22, 28), f1 = rnd(55, 72);
+        let t = 0.04;
         while (t < end) {
-          const k = t / end, amp = Math.min(1, t / 0.08) * (0.55 + 0.45 * k);
-          chain(noise(oc, t, 0.004), env(oc, t, rnd(0.5, 0.8) * amp, 0.0006, 0.003), bp);
-          t += (1 / (f0 + (f1 - f0) * k)) * rnd(0.85, 1.15);
+          const k = t / end;
+          const amp = Math.min(1, Math.max(0, (t - 0.04) / 0.11)) * (0.9 + 0.1 * Math.sin(Math.PI * k)) * (k > 0.85 ? 1 - ((k - 0.85) / 0.15) * 0.6 : 1);
+          const a = rnd(0.65, 0.85) * amp;
+          chain(noise(oc, t, 0.004), env(oc, t, a, 0.0006, 0.003), bp);
+          chain(noise(oc, t, 0.004), env(oc, t, a * 0.7, 0.0006, 0.003), bpH);
+          t += (1 / (f0 + (f1 - f0) * Math.pow(k, 0.8))) * rnd(0.88, 1.12);
         }
+        // 끝에 낮게 한 번 걸리는 걱 (작게)
         const bp2 = filt(oc, 'bandpass', rnd(380, 520), 3), g2 = oc.createGain();
-        g2.gain.value = 3.0; bp2.connect(g2); g2.connect(D);
-        for (let i = 0; i < 4; i++) { const tt = end + i * rnd(0.012, 0.02); chain(noise(oc, tt, 0.006), env(oc, tt, rnd(0.5, 0.8) * (1 - i * 0.18), 0.0008, 0.005), bp2); }
+        g2.gain.value = 2.2; bp2.connect(g2); g2.connect(D);
+        for (let i2 = 0; i2 < 3; i2++) { const tt = end + i2 * rnd(0.012, 0.02); chain(noise(oc, tt, 0.006), env(oc, tt, rnd(0.5, 0.75) * (1 - i2 * 0.2), 0.0008, 0.005), bp2); }
         const o = osc(oc, 'sine', rnd(150, 175), rnd(95, 110), end, end + 0.06);
-        chain(o, env(oc, end, 0.14, 0.003, 0.06), D); o.start(end); o.stop(end + 0.12);
+        chain(o, env(oc, end, 0.1, 0.003, 0.06), D); o.start(end); o.stop(end + 0.12);
       }],
       // 꾹 누르고 있는 동안 자국이 커지며 나는 작은 찌익 조각 — 촘촘히 틀면 끊기지 않는 찌—— 가 된다
       creak: [10, 0.14, (oc) => {
@@ -2815,9 +2824,10 @@ void main() {
       for (const pt of pointers.values()) {
         const d = pt.dent;
         if (pt.kind !== 'press' || !d || !d.active || !pt.mat || pt.mat.kind !== 'soft' || d.hold < 0.22) continue;
-        // 자국이 커지는 동안은 촘촘하게, 다 커진 뒤에도 손을 뗄 때까지 조금 작게 찌익찌익 이어진다 (숨 쉬듯 빠르기가 출렁)
-        const left = 1 - d.grow, breathe = 1 + 0.3 * Math.sin(d.hold * 2.3);
-        grains('creak', (6 + 9 * left) * breathe, (pt.mat.sound === 'jelly' ? 0.2 : 0.28) * (0.55 + 0.45 * left), dt);
+        // 찌이익 이 끝난 뒤(1초~), 자국이 다 커질 때까지만 작게 이어진다 — 중요한 건 찌이익 이라 뒤는 받쳐 주는 정도
+        if (d.hold < 1.0 || d.grow >= 1) continue;
+        const left = 1 - d.grow;
+        grains('creak', 5 + 7 * left, (pt.mat.sound === 'jelly' ? 0.16 : 0.22) * (0.5 + 0.5 * left), dt);
       }
     }
 
