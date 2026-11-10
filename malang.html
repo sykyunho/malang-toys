@@ -154,7 +154,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   <p class="fallback" id="fallback" hidden>이 브라우저에서는 WebGL을 쓸 수 없어서 공을 그릴 수 없어요.<br>사파리나 크롬 최신 버전에서 열어 주세요.</p>
   <nav class="dock" aria-label="놀잇감 고르기">
     <p class="hint" id="hint">꾹 누르면 쑥 · 두 손가락으로 쭉</p>
-    <div class="seg" id="dimSeg" role="group" aria-label="오행 보기" hidden>
+    <div class="seg" id="dimSeg" role="group" aria-label="평면·입체 보기" hidden>
       <button type="button" id="dim2" aria-pressed="true">평면</button>
       <button type="button" id="dim3" aria-pressed="false">입체</button>
     </div>
@@ -169,8 +169,10 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
       <button class="tab" role="tab" id="tab-keycap" type="button" aria-selected="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3.2"/><rect x="7" y="7.6" width="10" height="7.2" rx="2"/></svg>키캡</button>
       <button class="tab" role="tab" id="tab-throw" type="button" aria-selected="false">
-        <span class="badge" aria-hidden="true"><b>NEW</b><i></i></span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13.5c0-4 3.1-6.6 7-6.6s7 2.6 7 6.6c0 3.6-3.1 6.5-7 6.5s-7-2.9-7-6.5z"/><path d="M12 6.9l-1.6-2.4M12 6.9l1.9-1.9M12 6.9l-3.2.4M12 6.9l3.3.6"/></svg>던지기</button>
+      <button class="tab" role="tab" id="tab-zodiac" type="button" aria-selected="false">
+        <span class="badge" aria-hidden="true"><b>NEW</b><i></i></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="6.5"/><circle cx="6.6" cy="7" r="2.6"/><circle cx="17.4" cy="7" r="2.6"/><path d="M10 13h.01M14 13h.01M11 16c.6.5 1.4.5 2 0"/></svg>띠</button>
     </div>
   </nav>
 </div>
@@ -183,7 +185,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   const $ = (id) => document.getElementById(id);
   const app = $('app'), glc = $('gl');
   const hintEl = $('hint'), statusEl = $('status'), soundBtn = $('soundBtn'), resetBtn = $('resetBtn'), fixBtn = $('fixBtn'), dimSeg = $('dimSeg'), dim2 = $('dim2'), dim3 = $('dim3');
-  const chipsEl = $('flavors'), tabSquishy = $('tab-squishy'), tabOhaeng = $('tab-ohaeng'), tabWax = $('tab-wax'), tabKeycap = $('tab-keycap'), tabThrow = $('tab-throw');
+  const chipsEl = $('flavors'), tabSquishy = $('tab-squishy'), tabOhaeng = $('tab-ohaeng'), tabWax = $('tab-wax'), tabKeycap = $('tab-keycap'), tabThrow = $('tab-throw'), tabZodiac = $('tab-zodiac');
   const topEl = document.querySelector('.top'), dockEl = document.querySelector('.dock');
   const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -271,7 +273,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
         gloss: 0.05, sheen: 0.9, trans: 0.35 } },
   ];
   const FEEL_BASE = { type: 'foam', depth: 0.36, r0: 0.24, recover: 1, stick: 0, k: 240, c: 8, sk: 70, sc: 11, fk: 130, fc: 13 };
-  const PRESS_GAIN = 1.25; // 말랑이 누르는 깊이 배율
+  const PRESS_GAIN = 1.6; // 말랑이 누르는 깊이 배율 (1.25 → 1.4 → 1.6: 더 깊게 해 달라고 해서)
   const SHELL_FEEL = { type: 'jelly', depth: 0.045, r0: 0.2, recover: 1, stick: 0, k: 520, c: 34, sk: 600, sc: 42, fk: 600, fc: 42 };
   const BROKEN_FEEL = Object.assign({}, FEEL_BASE, { type: 'jelly', depth: 0.11, r0: 0.22, k: 420, c: 30, sk: 300, sc: 30, fk: 320, fc: 30 });
   const CRUSHED_FEEL = Object.assign({}, FEEL_BASE, { type: 'foam', depth: 0.2, r0: 0.24, recover: 1.8, stick: 0.08 });
@@ -280,7 +282,27 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
     s.patP = [s.pat, s.patScale, s.density == null ? 0.5 : s.density, s.size == null ? 0.2 : s.size];
     s.feel = Object.assign({}, FEEL_BASE, s.feel);
   }
-  SQUISHY.concat(OHAENG).forEach((f) => { prepSoft(f); f.bgRgb = f.bg.map(hexRgb); });
+  /* 12간지 말랑이: 띠 동물 얼굴을 부푼 쿠션 모양으로. form 6~17 */
+  const FOAM = { type: 'foam', depth: 0.38, recover: 0.8 };
+  const MOCHI = { type: 'foam', depth: 0.36, recover: 1.3, stick: 0.16, sk: 50, sc: 10 };
+  const JELLY = { type: 'jelly', depth: 0.32, k: 250, c: 9, sk: 240, sc: 8, fk: 260, fc: 9 };
+  const ZODIAC = [
+    ['rat', '子 쥐', '쥐띠 · 작고 날쌔게 톡 튀어요', ['#F3F0F8', '#D9D3E6'], '#7E6FA3', '#CBC4D8', '#F7F2FA', '#8D84A3', '#FFB3C7', 'jelly', JELLY],
+    ['ox', '丑 소', '소띠 · 묵직하게 꾹 눌려요', ['#F6F1E8', '#E2D5C0'], '#8A6A4A', '#F8F2E8', '#F6BDB3', '#A88E78', '#6A4E3C', 'foam', { type: 'foam', depth: 0.34, recover: 0.55 }],
+    ['tiger', '寅 호랑이', '범띠 · 탱탱하게 힘 있어요', ['#FFF3E6', '#FFD3A1'], '#C2600A', '#FFAA52', '#FFF6E8', '#D9711A', '#3B2A20', 'mochi', MOCHI],
+    ['rabbit', '卯 토끼', '토끼띠 · 폭신폭신 천천히 돌아와요', ['#FFF2F6', '#F9D3DF'], '#C6557A', '#FDF9FB', '#FFD6E0', '#E9C3CF', '#FF9DB5', 'foam', { type: 'foam', depth: 0.4, recover: 0.55 }],
+    ['dragon', '辰 용', '용띠 · 쫀득하고 탄탄해요', ['#ECFAF2', '#BCE8D0'], '#2F8A63', '#71CD9E', '#FFF1C2', '#2F8A63', '#F5C542', 'jelly', JELLY],
+    ['snake', '巳 뱀', '뱀띠 · 미끌미끌 출렁여요', ['#EEFBF6', '#C2EBDB'], '#3E7D66', '#9ADBC0', '#E9FFF5', '#4E9E80', '#3E7D66', 'jelly', { type: 'jelly', depth: 0.34, k: 160, c: 5, sk: 170, sc: 4.5, fk: 190, fc: 5 }],
+    ['horse', '午 말', '말띠 · 올해(병오년)의 띠예요', ['#F8EFE6', '#E3CBB2'], '#7A4F30', '#B98A60', '#F2D9BD', '#7A4F30', '#4A2F1E', 'mochi', MOCHI],
+    ['sheep', '未 양', '양띠 · 몽글몽글 구름처럼 푹', ['#FBF8F2', '#E9E1D3'], '#9A7A55', '#FFFDF7', '#F5DCC0', '#D8C8B4', '#B08A63', 'foam', { type: 'foam', depth: 0.42, recover: 0.5 }],
+    ['monkey', '申 원숭이', '원숭이띠 · 쫀득하게 장난쳐요', ['#F7EEE7', '#E2C7B3'], '#7A4A2C', '#AD7A56', '#F7D7B5', '#6E4429', '#F2B59B', 'mochi', MOCHI],
+    ['rooster', '酉 닭', '닭띠 · 탱글탱글 통통 튀어요', ['#FFF6F0', '#FBD9C9'], '#D9381E', '#FFFCF4', '#FFB347', '#E8DCCB', '#F03E3E', 'jelly', JELLY],
+    ['dog', '戌 개', '개띠 · 말랑하게 꾹 안겨요', ['#FBF4EA', '#EBD6B8'], '#8C5A2B', '#ECCB9E', '#FFF6E6', '#A97A45', '#8C5A2B', 'foam', FOAM],
+    ['pig', '亥 돼지', '돼지띠 · 쫀득하고 복스러워요', ['#FFF0F4', '#FFD0DC'], '#D45A7C', '#FFBACA', '#FF9DB4', '#E07A95', '#C95A78', 'mochi', MOCHI],
+  ].map(([id, name, desc, bg, accent, skin, cream, deep, spot, sound, feel], i) => ({
+    id, name, desc, form: 6 + i, bg, accent, skin, cream, deep, spot, pat: 0, patScale: 6,
+    gloss: sound === 'jelly' ? 0.55 : 0.12, sheen: sound === 'jelly' ? 0.2 : 0.6, trans: sound === 'jelly' ? 0.4 : 0.18, sound, feel }));
+  SQUISHY.concat(OHAENG, ZODIAC).forEach((f) => { prepSoft(f); f.bgRgb = f.bg.map(hexRgb); });
   WAX.forEach((f) => {
     prepSoft(f.inner);
     f.bgRgb = f.bg.map(hexRgb);
@@ -310,18 +332,19 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   THROW.forEach((f) => { f.bg = ['#F3E2C2', '#DDBB88']; f.accent = '#C2410C'; f.bgRgb = f.bg.map(hexRgb); });
   /* 과일마다 손맛: r 크기, flat 퍼지는 시간, spread 얼마나 납작하게 퍼지나, hold 다 퍼진 채 버티는 시간, back 쪼그라드는 시간, snd [소리, 높이, 크기] */
   const THROW_FEEL = [
-    { r: 0.24, flat: 0.18, spread: 1.0, hold: 0.6, back: 3.6, snd: [['splat', 1.0, 0.75]], buzz: 16 },                                 // 토마토: 묽어서 넓고 얇게 철퍽
-    { r: 0.18, flat: 0.12, spread: 0.85, hold: 0.45, back: 2.8, snd: [['splat', 1.3, 0.6], ['pop', 1.25, 0.3]], buzz: 10 },           // 주황 토마토: 작게 톡 터지며 퍽, 금방 쪼그라든다
-    { r: 0.2, flat: 0.26, spread: 0.72, hold: 0.9, back: 4.4, snd: [['splat', 0.78, 0.6], ['peel', 0.8, 0.35]], buzz: [10, 25, 8] },  // 딸기: 뭉근하게 뿍, 두툼하게 오래 붙어 있다
-    { r: 0.22, flat: 0.14, spread: 0.82, hold: 0.5, back: 3.0, snd: [['splat', 1.12, 0.6], ['spritz', 1, 0.45]], buzz: [6, 16, 12] }, // 귤: 껍질이 퍽 + 즙이 칙
+    // 붙는 순간엔 말랑이 누를 때 소리(찌—걱·젤리 톡)를 함께 깔고, 다 퍼진 뒤엔 말랑이 뗄 때처럼 스으 하고 공기가 빠진다
+    { r: 0.24, flat: 0.18, spread: 1.0, hold: 0.6, back: 3.6, snd: [['splat', 1.0, 0.6], ['squelch', 1.0, 0.42]], buzz: [12, 24, 6] },                    // 토마토: 묽어서 넓고 얇게 철퍽
+    { r: 0.18, flat: 0.12, spread: 0.85, hold: 0.45, back: 2.8, snd: [['splat', 1.3, 0.5], ['jellyPress', 1.15, 0.4]], buzz: [8, 20, 4] },               // 주황 토마토: 작게 톡 터지며 퍽, 금방 쪼그라든다
+    { r: 0.2, flat: 0.26, spread: 0.72, hold: 0.9, back: 4.4, snd: [['splat', 0.78, 0.5], ['squelch', 0.86, 0.48], ['peel', 0.8, 0.25]], buzz: [10, 30, 8] }, // 딸기: 뭉근하게 뿍, 두툼하게 오래 붙어 있다
+    { r: 0.22, flat: 0.14, spread: 0.82, hold: 0.5, back: 3.0, snd: [['splat', 1.12, 0.5], ['jellyPress', 1.0, 0.38], ['spritz', 1, 0.4]], buzz: [6, 16, 10] }, // 귤: 껍질이 퍽 + 즙이 칙
   ];
-  const LISTS = { squishy: SQUISHY, ohaeng: OHAENG, wax: WAX, keycap: KEYCAP, throw: THROW };
-  const idx = { squishy: 1, ohaeng: 0, wax: 0, keycap: 0, throw: 0 };
+  const LISTS = { squishy: SQUISHY, ohaeng: OHAENG, wax: WAX, keycap: KEYCAP, throw: THROW, zodiac: ZODIAC };
+  const idx = { squishy: 1, ohaeng: 0, wax: 0, keycap: 0, throw: 0, zodiac: 6 };   // 띠는 올해(2026 병오년) 말부터
   const cur = () => LISTS[mode][idx[mode]];
   const softMat = () => (mode === 'wax' ? cur().inner : cur());
-  const formOf = () => (mode === 'ohaeng' ? cur().form : 0);   // 0 공 · 1 나무 · 2 불꽃 · 3 흙산 · 4 금덩이 · 5 물방울
+  const formOf = () => (mode === 'ohaeng' || mode === 'zodiac' ? cur().form : 0);   // 0 공 · 1 나무 · 2 불꽃 · 3 흙산 · 4 금덩이 · 5 물방울
   let solid = store.get('malang_3d') === '1';   // 오행을 입체(360도 돌아가는 3D)로 볼지
-  const is3D = () => mode === 'ohaeng' && solid;
+  const is3D = () => (mode === 'ohaeng' || mode === 'zodiac') && solid;
   const ball = { cx: 0, cy: 0, R: 120, floor: 0, cyEff: 0 };
   const shape = { a: 1, va: 0, th: 0, f: 0, vf: 0, flatT: 0, pop: 1, vp: 0, inv: [1, 0, 0, 1], m: [1, 0, 0, 1], extX: 1, extY: 1 };
   const spin = { w: [0, 0, 0], hold: false };
@@ -378,7 +401,27 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
     const dx = Math.abs(x - cx) - bx + r, dy = Math.abs(y - cy) - by + r;
     return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - r;
   }
+  const sdEl = (x, y, cx, cy, a, b) => (Math.hypot((x - cx) / a, (y - cy) / b) - 1) * Math.min(a, b);
+  const sdSeg = (x, y, ax, ay, bx, by, r) => { const px = x - ax, py = y - ay, qx = bx - ax, qy = by - ay, h = clamp((px * qx + py * qy) / (qx * qx + qy * qy), 0, 1); return Math.hypot(px - qx * h, py - qy * h) - r; };
+  function animalSD(z, x, y) {
+    const m = Math.abs(x);
+    let d;
+    if (z === 0) { d = sdC(x, y, 0, -0.12, 0.6); d = smin(d, sdC(m, y, 0.5, 0.42, 0.3), 0.08); d = smin(d, sdC(x, y, 0, -0.42, 0.3), 0.15); }
+    else if (z === 1) { d = sdEl(x, y, 0, -0.1, 0.62, 0.56); d = smin(d, sdEl(m, y, 0.72, 0.12, 0.2, 0.11), 0.08); d = smin(d, sdSeg(m, y, 0.32, 0.38, 0.48, 0.72, 0.09), 0.06); d = smin(d, sdEl(x, y, 0, -0.42, 0.42, 0.3), 0.12); }
+    else if (z === 2) { d = sdEl(x, y, 0, -0.1, 0.66, 0.58); d = smin(d, sdC(m, y, 0.46, 0.46, 0.2), 0.08); d = smin(d, sdC(m, y, 0.55, -0.28, 0.24), 0.12); }
+    else if (z === 3) { d = sdC(x, y, 0, -0.22, 0.56); d = smin(d, sdSeg(m, y, 0.2, 0.2, 0.3, 0.8, 0.15), 0.08); }
+    else if (z === 4) { d = sdEl(x, y, 0, -0.08, 0.6, 0.56); d = smin(d, sdEl(x, y, 0, -0.4, 0.44, 0.28), 0.15); d = smin(d, sdSeg(m, y, 0.25, 0.4, 0.36, 0.8, 0.08), 0.05); d = smin(d, sdSeg(m, y, 0.31, 0.6, 0.5, 0.7, 0.06), 0.04); d = smin(d, sdEl(m, y, 0.66, 0.18, 0.18, 0.1), 0.06); }
+    else if (z === 5) { d = sdEl(x, y, 0, -0.52, 0.72, 0.32); d = smin(d, sdEl(x, y, 0, -0.18, 0.54, 0.26), 0.1); d = smin(d, sdC(x, y, 0, 0.28, 0.38), 0.12); }
+    else if (z === 6) { d = sdEl(x, y, 0, 0.05, 0.5, 0.56); d = smin(d, sdEl(x, y, 0, -0.42, 0.4, 0.34), 0.18); d = smin(d, sdSeg(m, y, 0.26, 0.45, 0.34, 0.8, 0.1), 0.06); d = smin(d, sdC(x, y, 0, 0.62, 0.16), 0.1); }
+    else if (z === 7) { d = sdC(x, y, 0, -0.05, 0.5); for (let k = 0; k < 8; k++) { const a = k * 0.7854 + 0.39; d = smin(d, sdC(x, y, 0.52 * Math.cos(a), -0.05 + 0.52 * Math.sin(a), 0.2), 0.06); } d = smin(d, sdC(m, y, 0.7, 0, 0.2), 0.05); }
+    else if (z === 8) { d = sdC(x, y, 0, -0.06, 0.6); d = smin(d, sdC(m, y, 0.68, 0, 0.24), 0.06); }
+    else if (z === 9) { d = sdC(x, y, 0, -0.12, 0.6); d = smin(d, sdC(x, y, -0.14, 0.56, 0.15), 0.08); d = smin(d, sdC(x, y, 0.04, 0.64, 0.17), 0.08); d = smin(d, sdC(x, y, 0.22, 0.56, 0.14), 0.08); }
+    else if (z === 10) { d = sdC(x, y, 0, -0.06, 0.6); d = smin(d, sdEl(m, y, 0.6, 0, 0.2, 0.36), 0.06); d = smin(d, sdEl(x, y, 0, -0.36, 0.32, 0.24), 0.12); }
+    else { d = sdEl(x, y, 0, -0.08, 0.66, 0.6); d = smin(d, sdC(m, y, 0.44, 0.5, 0.17), 0.06); }
+    return d;
+  }
   function formSD(f, x, y) {
+    if (f >= 6) return animalSD(f - 6, x, y);
     if (f === 1) {
       const leaf = smin(smin(sdC(x, y, 0, 0.3, 0.5), sdC(x, y, -0.4, 0.05, 0.36), 0.12), sdC(x, y, 0.4, 0.05, 0.36), 0.12);
       return smin(leaf, sdBox(x, y, 0, -0.55, 0.16, 0.32, 0.08), 0.1);
@@ -411,7 +454,15 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   }
   // 입체 오행: 평면판의 원을 같은 자리 구로 바꿔 쌓았다 (셰이더 formSD3 와 같은 식)
   const sdS = (x, y, z, cx, cy, cz, r) => Math.hypot(x - cx, y - cy, z - cz) - r;
+  function animal3(z0, x, y, z) {
+    const az = Math.abs(z) - 0.54;
+    if (az > 0.04) return az;
+    const d2 = animalSD(z0, x, y), k = clamp(-d2 / 0.42, 0, 1), h = 0.1 + 0.44 * k * k * (3 - 2 * k);
+    const wx = d2, wy = Math.abs(z) - h;
+    return (Math.min(Math.max(wx, wy), 0) + Math.hypot(Math.max(wx, 0), Math.max(wy, 0))) * 0.7;
+  }
   function formSD3(f, x, y, z) {
+    if (f >= 6) return animal3(f - 6, x, y, z);
     const S = (cx, cy, r) => sdS(x, y, z, cx, cy, 0, r);
     if (f === 1) {
       let leaf = smin(smin(S(0, 0.3, 0.5), S(-0.4, 0.05, 0.36), 0.12), S(0.4, 0.05, 0.36), 0.12);
@@ -460,7 +511,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   }
   // 모양마다 바닥 높이 (그림자와 눌렸을 때 바닥에 붙어 있게)
   const FORM_BOTTOM = [1];
-  for (let f = 1; f <= 5; f++) {
+  for (let f = 1; f <= 17; f++) {
     let b = 1;
     for (let y = -1; y < 0 && b === 1; y += 0.005) for (let x = -1; x <= 1; x += 0.02) if (formSD(f, x, y) < 0) { b = -y; break; }
     FORM_BOTTOM.push(b);
@@ -709,6 +760,27 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
         const o = osc(oc, 'sine', rnd(170, 210), rnd(85, 100), 0, 0.08);
         chain(o, env(oc, 0, 0.22, 0.002, 0.08), D); o.start(0);
       }],
+      // 철퍼덕: 젖은 덩어리가 철퍽 맞고(철퍽) 무게가 한 번 더 털썩 내려앉는다(덕). 큰 걸 던질수록 크고 낮게 튼다
+      flop: [5, 0.45, (oc) => {
+        const D = oc.destination;
+        chain(noise(oc, 0, 0.06), filt(oc, 'bandpass', rnd(800, 1000), 0.8), env(oc, 0, 0.9, 0.0008, 0.035), D);
+        chain(noise(oc, 0, 0.16), sweep(oc, 'lowpass', rnd(1400, 1700), rnd(220, 300), 0, 0.12, 0.9), env(oc, 0, 0.8, 0.002, 0.12), D);
+        const o = osc(oc, 'sine', rnd(90, 105), rnd(42, 50), 0, 0.12);
+        chain(o, env(oc, 0, 0.7, 0.002, 0.14), D); o.start(0); o.stop(0.25);
+        const t2 = rnd(0.07, 0.1);
+        chain(noise(oc, t2, 0.05), filt(oc, 'bandpass', rnd(520, 680), 1.1), env(oc, t2, 0.55, 0.001, 0.04), D);
+        const o2 = osc(oc, 'sine', rnd(115, 130), rnd(58, 66), t2, t2 + 0.06);
+        chain(o2, env(oc, t2, 0.45, 0.002, 0.07), D); o2.start(t2); o2.stop(t2 + 0.15);
+        for (let k = 0; k < 6; k++) { const t = t2 + 0.03 + k * rnd(0.015, 0.03); chain(noise(oc, t, 0.008), filt(oc, 'bandpass', rnd(1800, 3800), 2), env(oc, t, rnd(0.12, 0.25) * (1 - k / 6), 0.0005, 0.005), D); }
+      }],
+      // 쩍: 젖은 면이 들러붙으며 공기가 빠지는 짧은 흡착음 + 쩍쩍 떨어지는 잔소리
+      cling: [6, 0.2, (oc) => {
+        const D = oc.destination;
+        chain(noise(oc, 0, 0.05), sweep(oc, 'bandpass', rnd(1500, 1900), rnd(600, 800), 0, 0.04, 2.2), env(oc, 0, 0.7, 0.001, 0.035), D);
+        const o = osc(oc, 'sine', rnd(150, 180), rnd(70, 85), 0, 0.05);
+        chain(o, env(oc, 0, 0.35, 0.001, 0.05), D); o.start(0); o.stop(0.1);
+        for (let k = 0; k < 5; k++) { const t = 0.02 + k * rnd(0.012, 0.022); chain(noise(oc, t, 0.006), filt(oc, 'bandpass', rnd(2200, 4200), 2.5), env(oc, t, rnd(0.18, 0.35) * (1 - k * 0.15), 0.0005, 0.004), D); }
+      }],
       // 귤즙이 칙 튀는 소리
       spritz: [4, 0.3, (oc) => {
         const D = oc.destination;
@@ -913,6 +985,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
   const VERT = 'attribute vec2 aPos; void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }';
   const FRAG = `
 precision highp float;
+uniform float uBound;   // 화면에서 말랑이가 들어가는 원 반지름 (공 반지름 단위) — 밖은 바탕만 칠한다
 uniform vec2 uRes;
 uniform vec2 uCenter;
 uniform float uRadius;
@@ -1128,9 +1201,163 @@ float sdBox(vec2 p, vec2 c, vec2 b, float r) {
   vec2 d = abs(p - c) - b + r;
   return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r;
 }
+#ifdef P_ZOO
+// 12간지 모양 (자바스크립트 animalSD 와 같은 식). 좌우 대칭은 |x| 로
+float sdEl(vec2 p, vec2 c, vec2 ab) { return (length((p - c) / ab) - 1.0) * min(ab.x, ab.y); }
+float sdSeg(vec2 p, vec2 a, vec2 b, float r) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
+float animalSD(vec2 p) {
+  float z = uForm - 6.0;
+  vec2 m = vec2(abs(p.x), p.y);
+  float d;
+  if (z < 0.5) {
+    d = sdC(p, vec2(0.0, -0.12), 0.6); d = smin(d, sdC(m, vec2(0.5, 0.42), 0.3), 0.08); d = smin(d, sdC(p, vec2(0.0, -0.42), 0.3), 0.15);
+  } else if (z < 1.5) {
+    d = sdEl(p, vec2(0.0, -0.1), vec2(0.62, 0.56)); d = smin(d, sdEl(m, vec2(0.72, 0.12), vec2(0.2, 0.11)), 0.08);
+    d = smin(d, sdSeg(m, vec2(0.32, 0.38), vec2(0.48, 0.72), 0.09), 0.06); d = smin(d, sdEl(p, vec2(0.0, -0.42), vec2(0.42, 0.3)), 0.12);
+  } else if (z < 2.5) {
+    d = sdEl(p, vec2(0.0, -0.1), vec2(0.66, 0.58)); d = smin(d, sdC(m, vec2(0.46, 0.46), 0.2), 0.08); d = smin(d, sdC(m, vec2(0.55, -0.28), 0.24), 0.12);
+  } else if (z < 3.5) {
+    d = sdC(p, vec2(0.0, -0.22), 0.56); d = smin(d, sdSeg(m, vec2(0.2, 0.2), vec2(0.3, 0.8), 0.15), 0.08);
+  } else if (z < 4.5) {
+    d = sdEl(p, vec2(0.0, -0.08), vec2(0.6, 0.56)); d = smin(d, sdEl(p, vec2(0.0, -0.4), vec2(0.44, 0.28)), 0.15);
+    d = smin(d, sdSeg(m, vec2(0.25, 0.4), vec2(0.36, 0.8), 0.08), 0.05); d = smin(d, sdSeg(m, vec2(0.31, 0.6), vec2(0.5, 0.7), 0.06), 0.04);
+    d = smin(d, sdEl(m, vec2(0.66, 0.18), vec2(0.18, 0.1)), 0.06);
+  } else if (z < 5.5) {
+    d = sdEl(p, vec2(0.0, -0.52), vec2(0.72, 0.32)); d = smin(d, sdEl(p, vec2(0.0, -0.18), vec2(0.54, 0.26)), 0.1); d = smin(d, sdC(p, vec2(0.0, 0.28), 0.38), 0.12);
+  } else if (z < 6.5) {
+    d = sdEl(p, vec2(0.0, 0.05), vec2(0.5, 0.56)); d = smin(d, sdEl(p, vec2(0.0, -0.42), vec2(0.4, 0.34)), 0.18);
+    d = smin(d, sdSeg(m, vec2(0.26, 0.45), vec2(0.34, 0.8), 0.1), 0.06); d = smin(d, sdC(p, vec2(0.0, 0.62), 0.16), 0.1);
+  } else if (z < 7.5) {
+    d = sdC(p, vec2(0.0, -0.05), 0.5);
+    for (int k = 0; k < 8; k++) { float a = float(k) * 0.7854 + 0.39; d = smin(d, sdC(p, vec2(0.0, -0.05) + 0.52 * vec2(cos(a), sin(a)), 0.2), 0.06); }
+    d = smin(d, sdC(m, vec2(0.7, 0.0), 0.2), 0.05);
+  } else if (z < 8.5) {
+    d = sdC(p, vec2(0.0, -0.06), 0.6); d = smin(d, sdC(m, vec2(0.68, 0.0), 0.24), 0.06);
+  } else if (z < 9.5) {
+    d = sdC(p, vec2(0.0, -0.12), 0.6); d = smin(d, sdC(p, vec2(-0.14, 0.56), 0.15), 0.08);
+    d = smin(d, sdC(p, vec2(0.04, 0.64), 0.17), 0.08); d = smin(d, sdC(p, vec2(0.22, 0.56), 0.14), 0.08);
+  } else if (z < 10.5) {
+    d = sdC(p, vec2(0.0, -0.06), 0.6); d = smin(d, sdEl(m, vec2(0.6, 0.0), vec2(0.2, 0.36)), 0.06); d = smin(d, sdEl(p, vec2(0.0, -0.36), vec2(0.32, 0.24)), 0.12);
+  } else {
+    d = sdEl(p, vec2(0.0, -0.08), vec2(0.66, 0.6)); d = smin(d, sdC(m, vec2(0.44, 0.5), 0.17), 0.06);
+  }
+  return d;
+}
+float fill(float sd, float aa) { return 1.0 - smoothstep(-aa, aa, sd); }
+// 띠 동물 얼굴: 동물마다 귀 속·주둥이·무늬를 칠하고, 눈·볼터치·입은 같이 그린다
+vec3 animalAlb(vec2 p) {
+  float z = uForm - 6.0;
+  vec2 m = vec2(abs(p.x), p.y);
+  float aa = 0.012;
+  vec3 c = uSkin * (0.97 + 0.06 * vnoise(vec3(p * 9.0, 1.0)));
+  vec2 eye = vec2(0.22, 0.03);
+  float mouthY = 9.0;
+  vec3 dark = vec3(0.16, 0.11, 0.1);
+  if (z < 0.5) {   // 쥐: 분홍 귀 속, 분홍 코, 수염
+    c = mix(c, uSpot, fill(sdC(m, vec2(0.5, 0.43), 0.17), aa));
+    eye = vec2(0.2, -0.04);
+    c = mix(c, uSpot * 0.9, fill(sdC(p, vec2(0.0, -0.24), 0.05), aa));
+    mouthY = -0.31;
+    for (int k = 0; k < 3; k++) { float fk = float(k); c = mix(c, uDeep, 0.75 * fill(sdSeg(m, vec2(0.15, -0.27 + fk * 0.04), vec2(0.42, -0.22 + fk * 0.07), 0.006), aa * 0.6)); }
+  } else if (z < 1.5) {   // 소: 분홍 주둥이·콧구멍, 갈색 얼룩, 노란 뿔
+    float mz = fill(sdEl(p, vec2(0.0, -0.42), vec2(0.38, 0.25)), aa);
+    float blot = smoothstep(0.6, 0.64, vnoise(vec3(p * 2.6 + 3.0, 5.0))) * (1.0 - mz);
+    c = mix(c, uSpot, blot);
+    c = mix(c, uCream, mz);
+    c = mix(c, uDeep * 0.55, fill(sdEl(m, vec2(0.12, -0.44), vec2(0.04, 0.055)), aa));
+    c = mix(c, vec3(0.98, 0.9, 0.62), fill(sdSeg(m, vec2(0.32, 0.38), vec2(0.48, 0.72), 0.09), aa) * step(0.34, p.y));
+    c = mix(c, uDeep, fill(sdEl(m, vec2(0.74, 0.12), vec2(0.1, 0.05)), aa));
+  } else if (z < 2.5) {   // 호랑이: 흰 주둥이, 이마 王, 볼 줄무늬
+    c = mix(c, uDeep, fill(sdC(m, vec2(0.46, 0.47), 0.1), aa));
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.3), vec2(0.32, 0.21)), aa));
+    float w = 0.0;
+    w = max(w, fill(sdBox(p, vec2(0.0, 0.46), vec2(0.13, 0.022), 0.01), aa));
+    w = max(w, fill(sdBox(p, vec2(0.0, 0.38), vec2(0.1, 0.02), 0.01), aa));
+    w = max(w, fill(sdBox(p, vec2(0.0, 0.3), vec2(0.14, 0.022), 0.01), aa));
+    w = max(w, fill(sdBox(p, vec2(0.0, 0.38), vec2(0.022, 0.09), 0.01), aa));
+    w = max(w, fill(sdBox(m, vec2(0.6, -0.1), vec2(0.07, 0.022), 0.012), aa));
+    w = max(w, fill(sdBox(m, vec2(0.58, -0.22), vec2(0.07, 0.022), 0.012), aa));
+    c = mix(c, uSpot, w);
+    c = mix(c, vec3(0.88, 0.42, 0.42), fill(sdEl(p, vec2(0.0, -0.22), vec2(0.055, 0.04)), aa));
+    mouthY = -0.29; eye = vec2(0.24, 0.08);
+  } else if (z < 3.5) {   // 토끼: 분홍 귀 속, 분홍 코
+    c = mix(c, uSpot, fill(sdSeg(m, vec2(0.21, 0.3), vec2(0.29, 0.78), 0.07), aa));
+    c = mix(c, uSpot, fill(sdC(p, vec2(0.0, -0.27), 0.035), aa));
+    eye = vec2(0.2, -0.12); mouthY = -0.32;
+  } else if (z < 4.5) {   // 용: 노란 주둥이·콧구멍, 금빛 뿔, 진한 귀지느러미
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.42), vec2(0.36, 0.2)), aa));
+    c = mix(c, uDeep, fill(sdC(m, vec2(0.11, -0.36), 0.035), aa));
+    float horn = max(fill(sdSeg(m, vec2(0.25, 0.4), vec2(0.36, 0.8), 0.08), aa), fill(sdSeg(m, vec2(0.31, 0.6), vec2(0.5, 0.7), 0.06), aa)) * step(0.36, p.y);
+    c = mix(c, uSpot, horn);
+    c = mix(c, uDeep, fill(sdEl(m, vec2(0.68, 0.18), vec2(0.1, 0.05)), aa));
+    eye = vec2(0.24, 0.06);
+  } else if (z < 5.5) {   // 뱀: 똬리에 비늘 줄무늬, 머리는 위, 빨간 혀
+    float coil = step(p.y, 0.02);
+    float band = smoothstep(0.62, 0.7, abs(fract(p.x * 3.2 + abs(p.y + 0.35) * 2.2) - 0.5) * 2.0);
+    c = mix(c, uDeep, band * coil * 0.8);
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, 0.2), vec2(0.22, 0.14)), aa));
+    c = mix(c, vec3(0.9, 0.2, 0.25), fill(sdSeg(p, vec2(0.0, 0.1), vec2(0.0, 0.01), 0.014), aa * 0.6));
+    c = mix(c, vec3(0.9, 0.2, 0.25), fill(sdSeg(m, vec2(0.0, 0.01), vec2(0.035, -0.03), 0.012), aa * 0.6));
+    eye = vec2(0.13, 0.33);
+  } else if (z < 6.5) {   // 말: 밝은 주둥이·콧구멍, 진한 갈기
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.45), vec2(0.34, 0.26)), aa));
+    c = mix(c, uDeep, fill(sdEl(m, vec2(0.12, -0.46), vec2(0.04, 0.055)), aa));
+    float mane = max(fill(sdC(p, vec2(0.0, 0.62), 0.16), aa), max(fill(sdC(m, vec2(0.07, 0.47), 0.09), aa), fill(sdC(p, vec2(0.0, 0.43), 0.08), aa)));   // 앞머리 갈기
+    c = mix(c, uSpot, mane);
+    c = mix(c, uDeep, fill(sdSeg(m, vec2(0.27, 0.52), vec2(0.33, 0.76), 0.04), aa));
+    eye = vec2(0.24, 0.1);
+  } else if (z < 7.5) {   // 양: 몽글한 털, 베이지 얼굴, 돌돌 만 뿔
+    c *= 0.93 + 0.1 * vnoise(vec3(p * 16.0, 3.0));
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.12), vec2(0.32, 0.38)), aa));
+    vec2 hq = m - vec2(0.7, 0.0);
+    float hr = fill(length(hq) - 0.19, aa);
+    float sp = 0.5 + 0.5 * sin(atan(hq.y, hq.x) + length(hq) * 34.0);
+    c = mix(c, mix(uSpot, uDeep, sp), hr);
+    eye = vec2(0.14, -0.02); mouthY = -0.32;
+  } else if (z < 8.5) {   // 원숭이: 하트 모양 밝은 얼굴, 밝은 귀 속
+    float face = max(fill(sdC(m, vec2(0.16, 0.03), 0.24), aa), fill(sdEl(p, vec2(0.0, -0.24), vec2(0.36, 0.26)), aa));
+    c = mix(c, uCream, face);
+    c = mix(c, uCream, fill(sdC(m, vec2(0.68, 0.0), 0.13), aa));
+    c = mix(c, uDeep, fill(sdC(m, vec2(0.04, -0.17), 0.02), aa));
+    eye = vec2(0.17, 0.04); mouthY = -0.27;
+  } else if (z < 9.5) {   // 닭: 빨간 볏, 주황 부리, 빨간 턱볏
+    float comb = min(min(sdC(p, vec2(-0.14, 0.56), 0.15), sdC(p, vec2(0.04, 0.64), 0.17)), sdC(p, vec2(0.22, 0.56), 0.14));
+    c = mix(c, uSpot, fill(comb, aa) * step(0.42, p.y));
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.1), vec2(0.09, 0.07)), aa));
+    c = mix(c, uSpot, fill(sdC(p, vec2(0.0, -0.25), 0.065), aa));
+    eye = vec2(0.21, 0.07);
+  } else if (z < 10.5) {   // 개: 진한 늘어진 귀, 밝은 주둥이, 까만 코, 분홍 혀
+    c = mix(c, uSpot, fill(sdEl(m, vec2(0.6, 0.0), vec2(0.2, 0.36)), aa) * step(0.47, m.x));
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.34), vec2(0.3, 0.22)), aa));
+    c = mix(c, dark, fill(sdEl(p, vec2(0.0, -0.26), vec2(0.075, 0.055)), aa));
+    c = mix(c, vec3(1.0, 0.55, 0.62), fill(sdC(p, vec2(0.0, -0.44), 0.045), aa));
+    eye = vec2(0.21, 0.06); mouthY = -0.36;
+  } else {   // 돼지: 분홍 코와 콧구멍, 진한 귀 속
+    c = mix(c, uCream, fill(sdEl(p, vec2(0.0, -0.22), vec2(0.24, 0.17)), aa));
+    c = mix(c, uDeep, fill(sdEl(m, vec2(0.085, -0.22), vec2(0.035, 0.055)), aa));
+    c = mix(c, uDeep, fill(sdC(m, vec2(0.44, 0.5), 0.09), aa));
+    eye = vec2(0.24, 0.08);
+  }
+  // 눈: 까만 눈동자 + 왼쪽 위 흰 반짝
+  vec2 ec = vec2((p.x < 0.0 ? -1.0 : 1.0) * eye.x, eye.y);   // sign() 은 한가운데서 0 이라 세로줄이 생긴다
+  c = mix(c, dark, fill(length(p - ec) - 0.058, aa));
+  c = mix(c, vec3(1.0), fill(length(p - ec - vec2(-0.02, 0.022)) - 0.02, aa * 0.8));
+  // 볼터치
+  c = mix(c, vec3(1.0, 0.55, 0.62), 0.42 * (1.0 - smoothstep(0.04, 0.12, length(m - vec2(eye.x + 0.13, eye.y - 0.15)))));
+  // 입: ω
+  if (mouthY < 5.0) {
+    float r1 = abs(length(m - vec2(0.035, mouthY)) - 0.035) - 0.008;
+    c = mix(c, dark, fill(r1, aa * 0.6) * step(p.y, mouthY));
+  }
+  return c;
+}
+#endif
 // 오행 모양 (공 반지름 1 기준, 자바스크립트 formSD 와 같은 식). part: 나무 줄기 쪽이면 1
 float formSD(vec2 p, out float part) {
   part = 0.0;
+#ifdef P_ZOO
+  if (uForm > 5.5) return animalSD(p);
+#endif
   if (uForm < 1.5) {
     float leaf = smin(smin(sdC(p, vec2(0.0, 0.3), 0.5), sdC(p, vec2(-0.4, 0.05), 0.36), 0.12), sdC(p, vec2(0.4, 0.05), 0.36), 0.12);
     float trunk = sdBox(p, vec2(0.0, -0.55), vec2(0.16, 0.32), 0.08);
@@ -1162,8 +1389,23 @@ float formSD(vec2 p, out float part) {
 }
 // 입체 오행: 평면판의 원을 같은 자리 구로 바꿔 쌓았다 (자바스크립트 formSD3 와 같은 식)
 float sdS(vec3 p, vec3 c, float r) { return length(p - c) - r; }
+#ifdef P_ZOO
+// 입체 띠 동물: 평면 얼굴 모양을 앞뒤로 도톰하게 부풀린 봉제 인형 (자바스크립트 animal3 와 같은 식)
+float animal3(vec3 p) {
+  float az = abs(p.z) - 0.54;
+  if (az > 0.04) return az;   // 앞뒤로 먼 곳은 모양을 안 재고 바로 다가간다
+  float d2 = animalSD(p.xy);
+  float k = clamp(-d2 / 0.42, 0.0, 1.0);
+  float h = 0.1 + 0.44 * k * k * (3.0 - 2.0 * k);   // 가운데가 두껍고 귀·뿔 끝은 얇다 (지느러미처럼 날카롭지 않게 0.1 은 남긴다)
+  vec2 w = vec2(d2, abs(p.z) - h);
+  return (min(max(w.x, w.y), 0.0) + length(max(w, 0.0))) * 0.7;   // 두께가 자리마다 달라서 조금씩 다가간다
+}
+#endif
 float formSD3(vec3 p, out float part) {
   part = 0.0;
+#ifdef P_ZOO
+  if (uForm > 5.5) return animal3(p);
+#endif
   if (uForm < 1.5) {
     float leaf = smin(smin(sdS(p, vec3(0.0, 0.3, 0.0), 0.5), sdS(p, vec3(-0.4, 0.05, 0.0), 0.36), 0.12), sdS(p, vec3(0.4, 0.05, 0.0), 0.36), 0.12);
     leaf = smin(smin(leaf, sdS(p, vec3(0.0, 0.1, 0.32), 0.34), 0.12), sdS(p, vec3(0.0, 0.1, -0.32), 0.34), 0.12);
@@ -1310,8 +1552,8 @@ vec3 woodPlane(vec2 P, float w, vec2 fc) {
   col += vec3(0.08) * exp(-dot(g, g) * 2.0);   // 창빛
   return col;
 }
-// 납작하게 퍼질수록 가장자리가 울퉁불퉁 갈라져 나간다
-float splatSD(vec2 q, vec4 a, vec4 b, out vec2 lv) {
+// 납작하게 퍼질수록 가장자리가 울퉁불퉁 갈라져 나간다. drops: 튄 방울까지 셀지 (그림자는 본체만)
+float splatSDx(vec2 q, vec4 a, vec4 b, out vec2 lv, bool drops) {
   vec2 v = q - a.xy;
   float cr = cos(b.y);
   float sr = sin(b.y);
@@ -1320,9 +1562,30 @@ float splatSD(vec2 q, vec4 a, vec4 b, out vec2 lv) {
   float s = b.x * 17.0;
   // 한쪽으로 길쭉하게 + 크고 작은 혹이 고르지 않게 (별꽃처럼 반듯하지 않게)
   float wob = 0.35 * sin(2.0 * ang + s) + 0.4 * sin(3.0 * ang + s * 1.7) + 0.22 * sin(5.0 * ang + s * 2.9) + 0.14 * sin(8.0 * ang + s * 2.3) + 0.07 * sin(13.0 * ang + s * 3.1);
-  float rr = a.z * (1.0 + a.w * 1.1) * (1.0 + a.w * 0.16 * wob);
-  return length(v) - rr;
+  // 각도를 따라 반복되지 않는 잡음을 더해 가장자리가 들쭉날쭉하게
+  float jag = vnoise(vec3(cos(ang) * 2.4, sin(ang) * 2.4, s)) - 0.5;
+  float rr0 = a.z * (1.0 + a.w * 1.1);
+  float d = length(v) - rr0 * (1.0 + a.w * (0.2 * wob + 0.45 * jag));
+  // 퍼지면서 둘레에 튄 방울: 둘은 가는 팔로 본체에 이어지고, 나머지는 떨어져 붙는다
+  if (drops && a.w > 0.02) {
+    for (int j = 0; j < 5; j++) {
+      float fj = float(j);
+      float aj = s * 1.3 + fj * 1.93 + 0.8 * fract(s * 0.37 + fj * 0.61);
+      float dj = rr0 * (1.1 + 0.38 * fract(s * 0.53 + fj * 0.29));
+      float rj = rr0 * (0.06 + 0.08 * fract(s * 0.71 + fj * 0.43)) * smoothstep(0.0, 0.6, a.w);
+      vec2 cj = vec2(cos(aj), sin(aj)) * dj;
+      float dd = length(lv - cj) - rj;
+      if (j < 2) {
+        vec2 ba = cj * 0.75;   // 본체 쪽으로 가늘게 이어진 팔
+        float h = clamp(dot(lv, ba) / dot(ba, ba), 0.0, 1.0);
+        dd = min(dd, length(lv - ba * h) - rj * 0.45);
+        d = smin(d, dd, rr0 * 0.08);
+      } else d = min(d, dd);
+    }
+  }
+  return d;
 }
+float splatSD(vec2 q, vec4 a, vec4 b, out vec2 lv) { return splatSDx(q, a, b, lv, true); }
 // 날아오는 공을 세로로 눌러 본다: 닿기 직전 면에 눕는 모양으로 이어지게
 vec2 flyQ(vec2 p, vec4 a, float sq) {
   return a.xy + vec2(p.x - a.x, (p.y - a.y) * sq);
@@ -1359,18 +1622,18 @@ vec4 throw3(vec2 lc, vec2 fc) {
     float sq = max(uSr[i].y, 1.0);
     vec2 q = onP > 0.5 ? P : flyQ(lc, a, sq);
     float px = onP > 0.5 ? pw * TH_FV / uRadius : 1.0 / uRadius;   // 한 픽셀이 그 자리에서 얼마인지
-    float bound = a.z * (1.0 + a.w * 1.6) + 0.3 + air * 0.9;
+    float bound = a.z * (1.0 + a.w * 2.6) + 0.3 + air * 0.9;   // 튄 방울까지
     vec2 d = q - a.xy;
     if (dot(d, d) > bound * bound) continue;
     // 그림자: 면에서 떨어져 있을수록 멀리·흐리게
     vec2 lv;
-    float sds = splatSD((onP > 0.5 ? P : flyQ(lc, a, sq)) - vec2(0.05, -0.07) * (0.25 + air * 5.0), a, b, lv);
+    float sds = splatSDx((onP > 0.5 ? P : flyQ(lc, a, sq)) - vec2(0.05, -0.07) * (0.25 + air * 5.0), a, b, lv, false);
     shade = max(shade, b.w * (1.0 - smoothstep(-0.02, 0.03 + air * 0.38, sds)) * (1.0 - air * 0.5));
     float sd = splatSD(q, a, b, lv);
     contact = max(contact, b.w * (1.0 - air) * (1.0 - smoothstep(0.0, 0.03, sd)));
     if (sd < 1.5 * px) { top = float(i); ta = a; tb = b; tsd = sd / px; tlv = lv; onPlane = onP; tsq = sq; }
   }
-  col *= (1.0 - 0.28 * shade) * (1.0 - 0.3 * contact);
+  col *= (1.0 - 0.24 * shade) * (1.0 - 0.12 * contact);   // 젤리 밑은 빛이 통해서 거의 안 어둡다
   if (top < 0.0) return vec4(col, 1.0);
   float e = 1.25 / uRadius;
   vec2 ex = vec2(e, 0.0);
@@ -1391,24 +1654,38 @@ vec4 throw3(vec2 lc, vec2 fc) {
   alb += body * 0.25 * (1.0 - thick);   // 얇게 퍼진 가장자리는 빛이 비쳐 밝다
   vec2 lvn = tlv / ta.z;
   float ang = atan(tlv.y, tlv.x);
+  float opq = 0.0;   // 꼭지·씨처럼 안 비치는 부분
   if (tb.z < 2.5) {
     if (tb.z > 1.5) {   // 딸기 씨
       vec2 g = lvn * 6.0;
       vec2 f = fract(g) - 0.5 + (vec2(hash13(vec3(floor(g), 3.0)), hash13(vec3(floor(g), 7.0))) - 0.5) * 0.3;
-      alb = mix(alb, vec3(1.0, 0.88, 0.45) * (0.7 + 0.4 * wrap), (1.0 - smoothstep(0.09, 0.13, length(f))) * 0.9);
+      float seedM = (1.0 - smoothstep(0.09, 0.13, length(f))) * 0.9;
+      alb = mix(alb, vec3(1.0, 0.88, 0.45) * (0.7 + 0.4 * wrap), seedM);
+      opq = seedM;
     }
     // 꼭지: 가운데 초록 별
     float star = 0.5 * (0.3 + 0.7 * pow(abs(cos(2.5 * ang + tb.x * 9.0)), 2.2));   // 사진처럼 큼직한 꼭지
     float calyx = 1.0 - smoothstep(star - 0.03, star + 0.01, length(lvn));
     alb = mix(alb, vec3(0.16, 0.55, 0.24) * (0.6 + 0.55 * wrap), calyx);
+    opq = max(opq, calyx);
   } else {
     alb *= 0.93 + 0.07 * vnoise(vec3(lvn * 14.0, 2.0));   // 귤 껍질 오톨도톨
-    alb = mix(alb, vec3(0.3, 0.55, 0.2) * (0.6 + 0.5 * wrap), 1.0 - smoothstep(0.07, 0.1, length(lvn)));
+    float stem = 1.0 - smoothstep(0.07, 0.1, length(lvn));
+    alb = mix(alb, vec3(0.3, 0.55, 0.2) * (0.6 + 0.5 * wrap), stem);
+    opq = stem;
   }
   vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-  float spec = pow(max(dot(n, H), 0.0), 80.0) * 0.8;
-  float box = smoothstep(0.9, 0.97, dot(reflect(vec3(0.0, 0.0, -1.0), n), normalize(BOXDIR))) * 0.45;
-  vec3 sc = alb * (0.9 + 0.15 * thick) + vec3(spec + box);
+  float spec = pow(max(dot(n, H), 0.0), 80.0) * 0.95;
+  float box = smoothstep(0.9, 0.97, dot(reflect(vec3(0.0, 0.0, -1.0), n), normalize(BOXDIR))) * 0.55;
+  // 투명한 젤리: 얇은 가장자리는 뒤의 원목이 과일 빛으로 물들어 비치고, 두꺼운 가운데는 진하다 (꼭지·씨는 안 비침)
+  float th2 = smoothstep(0.0, 1.0, clamp(-tsd * (onPlane > 0.5 ? pw * TH_FV : 1.0) / uRadius / rr, 0.0, 1.0));   // 가장자리→가운데로 넓게 두꺼워진다
+  float op = onPlane > 0.5 ? mix(0.22, 0.6, th2) : mix(0.32, 0.72, th2);   // 붙은 판은 얇아서 더 비친다
+  if (tb.z > 2.5) op = mix(op, 1.0, 0.25);   // 귤은 조금 덜 비친다
+  op = mix(op, 1.0, opq);
+  // 밝은 젤리: 비치는 원목은 어둡게 물들이지 않고 과일 빛 쪽으로 섞고, 얇은 가장자리는 빛이 통해 환하다
+  vec3 seen = mix(col * mix(vec3(1.0), min(body * 1.4, vec3(1.0)), 0.3), body * 1.08, 0.35 + 0.25 * th2);
+  vec3 jel = mix(seen, alb * 1.12 + body * 0.08, op) + body * 0.16 * (1.0 - th2) * (1.0 - opq);
+  vec3 sc = jel * (0.92 + 0.12 * thick) + vec3(spec + box) + vec3(0.12) * pow(1.0 - clamp(n.z, 0.0, 1.0), 3.0);
   float alpha = clamp(-tsd + 0.5, 0.0, 1.0) * tb.w;   // tsd 는 픽셀 단위
   return vec4(mix(col, sc, alpha), 1.0);
 }
@@ -1556,6 +1833,10 @@ vec4 solid3(vec2 lc, vec3 bg) {
   alb = mix(alb, uSpot * (0.88 + 0.24 * vnoise(vec3(o.x * 30.0, o.y * 6.0, o.z * 30.0))), part);
   // 불꽃: 가장자리는 붉고 정면 속은 노랗게 (아래쪽일수록)
   if (uForm > 1.5 && uForm < 2.5) alb = mix(uSkin, uCream, smoothstep(0.35, 0.95, n.z) * (1.0 - smoothstep(-0.1, 0.75, o.y)));
+  // 띠 동물: 앞면엔 얼굴, 뒤통수는 털 색 그대로
+#ifdef P_ZOO
+  if (uForm > 5.5) alb = mix(uSkin * (0.97 + 0.06 * vnoise(vec3(o * 9.0))), animalAlb(o.xy), smoothstep(-0.02, 0.12, o.z));
+#endif
   vec2 cg = lc - vec2(0.3, -0.42);
   vec3 caustic = mix(uCream, vec3(1.0), 0.3) * uTrans * 0.42 * exp(-dot(cg, cg) * 5.0);
   vec3 col = shadeSoft(n, alb, dentAmt) + caustic;
@@ -1576,10 +1857,15 @@ void main() {
   vec2 cs = (sp - vec2(0.22, 0.1)) * vec2(2.2, 2.6);
   bg += uSkin * uShTrans * 0.2 * exp(-dot(cs, cs));
   bg += (hash13(vec3(fc, 1.0)) - 0.5) * 0.014;
-  if (uMode > 2.5) { gl_FragColor = throw3(lc, fc); return; }
-  if (uMode > 1.5) { gl_FragColor = keys3(lc, bg); return; }
-  if (uForm > 0.5 && u3D > 0.5) { gl_FragColor = solid3(lc, bg); return; }
-
+#if defined(P_THROW)
+  gl_FragColor = throw3(lc, fc);
+#elif defined(P_KEYS)
+  gl_FragColor = keys3(lc, bg);
+#elif defined(P_SOLID)
+  if (dot(lc, lc) > uBound * uBound) { gl_FragColor = vec4(bg, 1.0); return; }
+  gl_FragColor = solid3(lc, bg);
+#else
+  if (dot(lc, lc) > uBound * uBound) { gl_FragColor = vec4(bg, 1.0); return; }
   float inside; float ds; vec2 p; float R;
   surf(lc, inside, ds, p, R);
   if (inside < -0.08) { gl_FragColor = vec4(bg, 1.0); return; }
@@ -1600,7 +1886,8 @@ void main() {
   vec2 cg = pu - vec2(0.3, -0.42);
   vec3 caustic = mix(uCream, vec3(1.0), 0.3) * uTrans * 0.42 * exp(-dot(cg, cg) * 5.0);
   vec3 col;
-  if (uMode < 0.5) {
+#ifndef P_WAX
+  {
     vec3 alb = pattern(Pl, uPatP, uSkin, uCream, uSpot);
     if (uForm > 0.5) {
       float part;
@@ -1609,9 +1896,14 @@ void main() {
       alb = mix(alb, uSpot * (0.88 + 0.24 * vnoise(vec3(p.x * 30.0, p.y * 6.0, 1.0))), part);
       // 불꽃은 가장자리가 붉고 속으로 갈수록 노랗게 타오른다
       if (uForm > 1.5 && uForm < 2.5) alb = mix(uSkin, uCream, smoothstep(0.06, 0.3, -sdm) * (1.0 - smoothstep(-0.1, 0.75, p.y / R)));
+#ifdef P_ZOO
+      if (uForm > 5.5) alb = animalAlb(p / R);
+#endif
     }
     col = shadeSoft(n, alb, dentAmt) + caustic;
-  } else {
+  }
+#else
+  {
     // 왁스: 투명한 풍선 막 안의 두꺼운 왁스 판. 깨진 판은 막 안에 남은 채 기울고 가라앉는다
     vec3 cc;
     vec3 cc2;
@@ -1674,38 +1966,23 @@ void main() {
       + pow(1.0 - clamp(n.z, 0.0, 1.0), 3.0) * 0.12;
     col += vec3(film);
   }
+#endif
   col += uBgBot * 0.10 * max(-n.y, 0.0);
   gl_FragColor = vec4(mix(bg, col, alpha), 1.0);
+#endif
 }
 `;
-  const U = {};
-  let gl = null, tex = null;
+  let U = {};
+  let gl = null, tex = null, glBuf = null;
+  let progs = {}, progKeyNow = null;
   function initGL() {
     gl = glc.getContext('webgl', { antialias: false, alpha: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: 'high-performance' })
       || glc.getContext('experimental-webgl');
     if (!gl) throw new Error('no-webgl');
-    const sh = (type, src) => {
-      const s = gl.createShader(type);
-      gl.shaderSource(s, src); gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('shader: ' + gl.getShaderInfoLog(s));
-      return s;
-    };
-    const prog = gl.createProgram();
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
-    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(prog));
-    gl.useProgram(prog);
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    progs = {}; progKeyNow = null;
+    glBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, glBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, 'aPos');
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-    ['uRes', 'uCenter', 'uRadius', 'uShapeInv', 'uBulge', 'uDent', 'uRot', 'uSkin', 'uDeep', 'uCream', 'uSpot', 'uPatP', 'uGloss',
-      'uSheen', 'uTrans', 'uThin', 'uBgTop', 'uBgBot', 'uShadowC', 'uShadowS', 'uMode', 'uShell', 'uShell2', 'uShellSpot', 'uShellP', 'uMask',
-      'uShTrans', 'uImpact', 'uPerm', 'uPermN', 'uForm', 'u3D', 'uPermB', 'uKey', 'uCapA', 'uCapB', 'uLed', 'uCase', 'uSp', 'uSq', 'uSr', 'uSpN']
-      .forEach((n) => { U[n] = gl.getUniformLocation(prog, n); });
     tex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -1715,12 +1992,52 @@ void main() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.uniform1i(U.uMask, 0);
     maskDirty = true; forceDraw = true;
+    useProg(progKey());   // 지금 탭 셰이더는 바로 만들어서 고장이면 처음에 알 수 있게
+  }
+  // 탭마다 셰이더를 따로: 쓰지 않는 탭 코드가 빠져서 작고 빠르다. 처음 그 탭을 열 때 한 번 만든다
+  const PROG_DEFS = { soft: '', softZ: '#define P_ZOO\n', solid: '#define P_SOLID\n', solidZ: '#define P_SOLID\n#define P_ZOO\n',
+    wax: '#define P_WAX\n', keys: '#define P_KEYS\n', throw: '#define P_THROW\n' };
+  const UNIFORMS = ['uBound', 'uRes', 'uCenter', 'uRadius', 'uShapeInv', 'uBulge', 'uDent', 'uRot', 'uSkin', 'uDeep', 'uCream', 'uSpot', 'uPatP', 'uGloss',
+    'uSheen', 'uTrans', 'uThin', 'uBgTop', 'uBgBot', 'uShadowC', 'uShadowS', 'uMode', 'uShell', 'uShell2', 'uShellSpot', 'uShellP', 'uMask',
+    'uShTrans', 'uImpact', 'uPerm', 'uPermN', 'uForm', 'u3D', 'uPermB', 'uKey', 'uCapA', 'uCapB', 'uLed', 'uCase', 'uSp', 'uSq', 'uSr', 'uSpN'];
+  function progKey() {
+    if (mode === 'throw') return 'throw';
+    if (mode === 'keycap') return 'keys';
+    if (mode === 'wax') return 'wax';
+    return (is3D() ? 'solid' : 'soft') + (mode === 'zodiac' ? 'Z' : '');
+  }
+  function useProg(key) {
+    if (progKeyNow === key) return;
+    if (!progs[key]) {
+      const sh = (type, src) => {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src); gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('shader(' + key + '): ' + gl.getShaderInfoLog(s));
+        return s;
+      };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, PROG_DEFS[key] + FRAG));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link(' + key + '): ' + gl.getProgramInfoLog(prog));
+      const u = {};
+      UNIFORMS.forEach((n) => { u[n] = gl.getUniformLocation(prog, n); });
+      progs[key] = { prog, u, aPos: gl.getAttribLocation(prog, 'aPos') };
+      gl.useProgram(prog);
+      gl.uniform1i(u.uMask, 0);
+    }
+    const P = progs[key];
+    gl.useProgram(P.prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, glBuf);
+    gl.enableVertexAttribArray(P.aPos);
+    gl.vertexAttribPointer(P.aPos, 2, gl.FLOAT, false, 0, 0);
+    U = P.u; progKeyNow = key;
   }
   const dentArr = new Float32Array(24), impactArr = new Float32Array(24), permArr = new Float32Array(96), permBArr = new Float32Array(96), keyArr = new Float32Array(36);
   function render() {
     if (!gl) return;
+    useProg(progKey());
     if (maskDirty) { gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, MW, MH, gl.RGBA, gl.UNSIGNED_BYTE, mask); maskDirty = false; }
     gl.viewport(0, 0, glc.width, glc.height);
     gl.uniform2f(U.uRes, glc.width, glc.height);
@@ -1748,6 +2065,10 @@ void main() {
     gl.uniform4fv(U.uPermB, permBArr);
     gl.uniform1f(U.uPermN, perm.length);
     gl.uniform1f(U.uBulge, Math.min(0.1, bulge * 0.12));
+    {
+      const m = shape.m, rs = Math.max(Math.abs(m[0]) + Math.abs(m[1]), Math.abs(m[2]) + Math.abs(m[3])), cs = Math.max(Math.abs(m[0]) + Math.abs(m[2]), Math.abs(m[1]) + Math.abs(m[3]));
+      gl.uniform1f(U.uBound, Math.sqrt(rs * cs) * (1 + Math.min(0.1, bulge * 0.12)) * 1.08 + 4 / (ball.R * dpr));
+    }
     gl.uniformMatrix3fv(U.uRot, false, O);
     const s = softMat();
     gl.uniform3fv(U.uSkin, s.rgb.skin); gl.uniform3fv(U.uDeep, s.rgb.deep); gl.uniform3fv(U.uCream, s.rgb.cream); gl.uniform3fv(U.uSpot, s.rgb.spot);
@@ -1806,7 +2127,7 @@ void main() {
   function resize() {
     const r = app.getBoundingClientRect();
     W = r.width; H = r.height;
-    const base = Math.min(window.devicePixelRatio || 1, 2);
+    const base = Math.min(window.devicePixelRatio || 1, is3D() ? 1.5 : 2);
     dpr = base * quality;
     glc.width = Math.max(1, Math.round(W * dpr)); glc.height = Math.max(1, Math.round(H * dpr));
     const top = topEl.getBoundingClientRect().bottom - r.top + 34;
@@ -2001,7 +2322,7 @@ void main() {
     buzz([18, 40, 24]);
   }
   function updateStatus() {
-    if (mode === 'ohaeng') { statusEl.hidden = false; statusEl.textContent = cur().desc; return; }
+    if (mode === 'ohaeng' || mode === 'zodiac') { statusEl.hidden = false; statusEl.textContent = cur().desc; return; }
     if (mode !== 'wax') { statusEl.hidden = true; return; }
     statusEl.hidden = false;
     statusEl.textContent = crushDone ? '다 부쉈어요 · 새 공으로 다시 해 보세요'
@@ -2057,6 +2378,39 @@ void main() {
   const SPLAT_MAX = 14;   // 벽에 붙어 있는 개수 상한(성능). 넘게 던지면 가장 오래된 것부터 빠진다
   const splats = [];
   const spA = new Float32Array(SPLAT_MAX * 4), spB = new Float32Array(SPLAT_MAX * 4), spC = new Float32Array(SPLAT_MAX * 4);
+  // 꾹 누르면 손가락 밑에서 과일이 말랑하게 부풀고, 떼면 그 자리 벽으로 크게 던진다 (톡 치면 바로 던지기)
+  const throwPress = new Map();
+  const CHARGE_NEAR = 0.45;   // 부푸는 동안 손에 쥔 거리 (벽까지의 0.45)
+  function startCharge(tp) {
+    if (splats.length >= SPLAT_MAX) splats.shift();
+    const f = THROW_FEEL[cur().kind];
+    const tx = (tp.x - ball.cx) / ball.R, ty = (ball.cy - tp.y) / ball.R;
+    tp.sp = { kind: cur().kind, tx, ty, sx: tx, sy: ty, x: tx, y: ty, t: 0, phase: 'charge', base: f.r, r: f.r * 0.6, big: 1, step: 0,
+      land: 1 / planeW(ty), near: CHARGE_NEAR, scale: (1 / planeW(ty)) / CHARGE_NEAR, spread: 0, seed: Math.random(), rot: rnd(0, 6.28), alpha: 1, air: 1, sq: 1 };
+    splats.push(tp.sp);
+    Sound.play('squelch', { gain: 0.3, rate: 1.1 });
+    tick(); buzz(6);
+  }
+  function aimCharge(tp) {
+    const sp = tp.sp;
+    sp.tx = sp.sx = sp.x = (tp.x - ball.cx) / ball.R;
+    sp.ty = sp.sy = sp.y = (ball.cy - tp.y) / ball.R;
+    sp.land = 1 / planeW(sp.ty); sp.scale = sp.land / sp.near;
+  }
+  function growCharge(tp, held, dt) {
+    const sp = tp.sp, k = Math.min(1, (held - 0.16) / 1.25), grow = 1 - (1 - k) * (1 - k);
+    sp.big = 1 + 1.2 * grow;   // 1.4초쯤에 2.2배
+    sp.r = sp.base * sp.big * (0.6 + 0.4 * Math.min(1, (held - 0.16) / 0.12));
+    sp.rot += dt * 0.6;
+    if (k < 1) grains('creak', 9, 0.22, dt);   // 부푸는 동안 말랑이처럼 찌——
+    const step = Math.floor(grow * 6);
+    if (step > sp.step) { sp.step = step; buzz(5); }
+  }
+  function launchCharge(tp) {
+    const sp = tp.sp;
+    sp.phase = 'fly'; sp.t = 0; sp.flyT = 0.3; sp.r = sp.base * sp.big;
+    Sound.play('whoosh', { gain: 0.6, rate: 0.85 / Math.sqrt(sp.big) });
+  }
   function throwAt(x, y) {
     noteInteraction();
     if (splats.length >= SPLAT_MAX) splats.shift();
@@ -2069,14 +2423,22 @@ void main() {
     Sound.play('whoosh', { gain: 0.5, rate: rnd(0.9, 1.15) * Math.sqrt(0.24 / f.r) });   // 작은 과일은 휙 소리도 가볍게
   }
   function updateSplats(dt) {
+    const now = performance.now();
+    for (const tp of throwPress.values()) {
+      const held = (now - tp.t0) / 1000;
+      if (!tp.sp && held > 0.16) startCharge(tp);
+      if (tp.sp) growCharge(tp, held, dt);
+    }
     for (let i = splats.length - 1; i >= 0; i--) {
       const sp = splats[i];
+      if (sp.phase === 'charge') continue;
       sp.t += dt;
       if (sp.phase === 'fly') {
         // 손에서 먼 벽까지 실제 깊이로 날아간다: 화면 위치·크기는 거리로 나눠서 (앞에선 빨리 작아지고 벽 앞에선 천천히)
-        const e = Math.min(1, sp.t / 0.24), d = THROW_NEAR + (1 - THROW_NEAR) * e;
-        const wx = sp.sx * THROW_NEAR + (sp.tx - sp.sx * THROW_NEAR) * e;
-        const wy = sp.sy * THROW_NEAR + (sp.ty - sp.sy * THROW_NEAR) * e + Math.sin(Math.PI * e) * 0.5;   // 위로 솟았다 내려와 붙는다
+        const nr = sp.near || THROW_NEAR;
+        const e = Math.min(1, sp.t / (sp.flyT || 0.24)), d = nr + (1 - nr) * e;
+        const wx = sp.sx * nr + (sp.tx - sp.sx * nr) * e;
+        const wy = sp.sy * nr + (sp.ty - sp.sy * nr) * e + Math.sin(Math.PI * e) * 0.5;   // 위로 솟았다 내려와 붙는다
         sp.x = wx / d; sp.y = wy / d; sp.scale = sp.land / d;
         const near = Math.min(1, Math.max(0, (e - 0.7) / 0.3));
         sp.sq = 1 + (TH_FV - 1) * near * near * (3 - 2 * near);   // 닿기 직전 면 쪽으로 눌려 납작해진다
@@ -2084,19 +2446,26 @@ void main() {
         if (e >= 1) {
           sp.phase = 'stuck'; sp.t = 0; sp.air = 0; sp.scale = 1;
           [sp.x, sp.y] = planeOf(sp.tx, sp.ty);   // 이제부터는 원목 면 위의 자리
-          const f = THROW_FEEL[sp.kind];
-          f.snd.forEach(([n, r, g]) => Sound.play(n, { gain: g * rnd(0.88, 1.06), rate: r * rnd(0.94, 1.06) }));
-          tick(); buzz(f.buzz);
+          const f = THROW_FEEL[sp.kind], big = sp.big || 1;
+          // 큰 말랑이일수록 묵직하게: 소리는 낮고 크게, 진동은 세게
+          f.snd.forEach(([n, r, g]) => Sound.play(n, { gain: g * Math.min(1.3, 0.85 + 0.25 * big) * rnd(0.88, 1.06), rate: (r / Math.sqrt(big)) * rnd(0.94, 1.06) }));
+          Sound.play('cling', { gain: 0.5 * Math.min(1.3, 0.85 + 0.15 * big), rate: rnd(0.92, 1.08) / Math.sqrt(big), delay: 0.012 });
+          // 크기만큼 묵직한 철퍼덕: 보통은 작게 퍽, 꾹 눌러 키운 건 크고 낮게
+          Sound.play('flop', { gain: Math.min(0.95, 0.2 + 0.6 * (big - 1)), rate: (1.15 / Math.sqrt(big)) * rnd(0.95, 1.05) });
+          tick(); buzz(big > 1.3 ? [20, 30, 12] : f.buzz);
         }
       } else if (sp.phase === 'stuck') {
         // 쩍: 닿으면 0.18초 동안 처음엔 빠르게, 끝으로 갈수록 끈적하게 느려지며 퍼진다. 가장 크게 퍼진 뒤엔
         // 표면이 당기듯 3%만 살짝 오므라들고(출렁임 없음), 0.6초부터 3.6초에 걸쳐 서서히 쪼그라든다
-        const f = THROW_FEEL[sp.kind];
-        const u = Math.min(1, sp.t / f.flat), flat = 1 - Math.pow(1 - u, 3);
-        const settle = Math.min(1, Math.max(0, (sp.t - f.flat) / 0.3));
-        const back = sp.t < f.hold ? 0 : Math.min(1, (sp.t - f.hold) / f.back);
-        sp.spread = f.spread * flat * (1 - 0.03 * settle * settle * (3 - 2 * settle)) * (1 - back * back * (3 - 2 * back));
-        if (sp.t > f.hold + f.back + 0.2) { sp.phase = 'fall'; sp.t = 0; Sound.play('peel', { gain: 0.5, rate: rnd(0.9, 1.1) }); }
+        const f = THROW_FEEL[sp.kind], big = sp.big || 1;
+        const fHold = f.hold * (0.7 + 0.3 * big), fBack = f.back * (0.8 + 0.2 * big), fFlat = f.flat * (0.85 + 0.15 * big);   // 큰 건 더 오래 붙어 있다
+        const u = Math.min(1, sp.t / fFlat), flat = 1 - Math.pow(1 - u, 3);
+        // 다 퍼진 뒤엔 말랑이가 차오르듯 6% 천천히 되돌아온다 (가장 큰 건 여전히 닿는 순간)
+        const settle = Math.min(1, Math.max(0, (sp.t - fFlat) / 0.6));
+        const back = sp.t < fHold ? 0 : Math.min(1, (sp.t - fHold) / fBack);
+        sp.spread = f.spread * flat * (1 - 0.06 * (1 - Math.pow(1 - settle, 3))) * (1 - back * back * (3 - 2 * back));
+        if (!sp.sighed && sp.t > fFlat + 0.04) { sp.sighed = true; Sound.play('foamRelease', { gain: 0.22, rate: rnd(0.95, 1.1) }); }
+        if (sp.t > fHold + fBack + 0.2) { sp.phase = 'fall'; sp.t = 0; Sound.play('peel', { gain: 0.5, rate: rnd(0.9, 1.1) }); }
       } else {
         // 다 쪼그라들면 쩍 떨어지며 사라진다
         sp.alpha = Math.max(0, 1 - sp.t / 0.6);
@@ -2107,7 +2476,7 @@ void main() {
   }
 
   /* ---------- 손가락 ---------- */
-  const HINTS = { throw: '화면을 톡 치면 던져요 · 연타도 돼요', keycap: '키를 눌러 보세요 · 여러 손가락으로 같이 · 쓸면 도르륵', squishy: '꾹 누르면 쑥 · 두 손가락으로 쭉 · 빈 곳을 밀면 데굴', ohaeng: '다섯 기운마다 손맛이 달라요 · 입체는 빈 곳을 밀면 빙글', wax: '꾹 누르면 쩍 · 금 간 데를 누르면 바스락' };
+  const HINTS = { zodiac: '띠 동물을 꾹 · 입체는 빈 곳을 밀면 빙글', throw: '톡 치면 던지고 · 꾹 누르면 커져요 · 연타도 돼요', keycap: '키를 눌러 보세요 · 여러 손가락으로 같이 · 쓸면 도르륵', squishy: '꾹 누르면 쑥 · 두 손가락으로 쭉 · 빈 곳을 밀면 데굴', ohaeng: '다섯 기운마다 손맛이 달라요 · 입체는 빈 곳을 밀면 빙글', wax: '꾹 누르면 쩍 · 금 간 데를 누르면 바스락' };
   let hintCount = 0;
   function showHint() { hintEl.textContent = HINTS[mode]; hintEl.classList.remove('gone'); hintCount = 0; }
   function noteInteraction() { if (++hintCount >= 3) hintEl.classList.add('gone'); }
@@ -2126,7 +2495,7 @@ void main() {
     return waxMat(dirOf(toBall(x, y)));
   }
   function pressStart(id, x, y) {
-    if (mode === 'throw') { throwAt(x, y); return; }
+    if (mode === 'throw') { noteInteraction(); throwPress.set(id, { x, y, t0: performance.now(), sp: null }); forceDraw = true; return; }
     if (mode === 'keycap') {
       const k = pickKey(x, y);
       pointers.set(id, { id, x, y, kind: 'key', key: k });
@@ -2165,6 +2534,8 @@ void main() {
     }
   }
   function pressMove(id, x, y) {
+    const tp = throwPress.get(id);
+    if (tp) { tp.x = x; tp.y = y; if (tp.sp) aimCharge(tp); return; }
     const pt = pointers.get(id);
     if (!pt) return;
     if (pt.kind === 'key') {   // 손가락을 쓸면 지나가는 키가 차례로 눌린다
@@ -2195,6 +2566,12 @@ void main() {
     } else if (pt.wax) waxMove(pt);
   }
   function pressEnd(id) {
+    const tp = throwPress.get(id);
+    if (tp) {
+      throwPress.delete(id);
+      if (tp.sp) { if (splats.includes(tp.sp)) launchCharge(tp); } else throwAt(tp.x, tp.y);
+      return;
+    }
     const pt = pointers.get(id);
     if (!pt) return;
     pointers.delete(id);
@@ -2277,7 +2654,7 @@ void main() {
   function resetBall(withSound) {
     for (const d of dents) { d.used = false; d.active = false; d.depth = 0; d.vel = 0; }
     for (const K of KEYS) { K.p = 0; K.flash = 0; K.held = 0; }
-    splats.length = 0;
+    splats.length = 0; throwPress.clear();
     pointers.clear(); stretch.active = false; spin.hold = false;
     spin.w = [0, 0, 0];
     Object.assign(shape, { a: 1, va: 0, f: 0, vf: 0, flatT: 0, pop: 0.35, vp: 0 });
@@ -2304,7 +2681,8 @@ void main() {
     tabWax.setAttribute('aria-selected', String(m === 'wax'));
     tabKeycap.setAttribute('aria-selected', String(m === 'keycap'));
     tabThrow.setAttribute('aria-selected', String(m === 'throw'));
-    fixBtn.hidden = m !== 'squishy' && m !== 'ohaeng';
+    tabZodiac.setAttribute('aria-selected', String(m === 'zodiac'));
+    fixBtn.hidden = m !== 'squishy' && m !== 'ohaeng' && m !== 'zodiac';
     syncDim();
     buildChips(); applyTheme(); showHint(); resetBall(true);
     resize();
@@ -2314,6 +2692,7 @@ void main() {
   tabWax.addEventListener('click', () => setMode('wax'));
   tabKeycap.addEventListener('click', () => setMode('keycap'));
   tabThrow.addEventListener('click', () => setMode('throw'));
+  tabZodiac.addEventListener('click', () => setMode('zodiac'));
   resetBtn.addEventListener('click', () => resetBall(true));
   function syncSoundBtn() {
     const on = Sound.isOn();
@@ -2322,14 +2701,14 @@ void main() {
   }
   soundBtn.addEventListener('click', () => { Sound.setOn(!Sound.isOn()); syncSoundBtn(); });
   function syncDim() {
-    dimSeg.hidden = mode !== 'ohaeng';
+    dimSeg.hidden = mode !== 'ohaeng' && mode !== 'zodiac';
     dim2.setAttribute('aria-pressed', String(!solid));
     dim3.setAttribute('aria-pressed', String(solid));
   }
   function setSolid(v) {
     if (v === solid) return;
     solid = v; store.set('malang_3d', v ? '1' : '0');
-    syncDim(); resetBall(true);
+    syncDim(); resetBall(true); resize();   // 입체는 화면 배율이 달라서
   }
   dim2.addEventListener('click', () => setSolid(false));
   dim3.addEventListener('click', () => setSolid(true));
@@ -2435,9 +2814,10 @@ void main() {
     if (mode !== 'wax' && !stretch.active) {
       for (const pt of pointers.values()) {
         const d = pt.dent;
-        if (pt.kind !== 'press' || !d || !d.active || !pt.mat || pt.mat.kind !== 'soft' || d.hold < 0.22 || d.grow >= 1) continue;
-        const left = 1 - d.grow;
-        grains('creak', 7 + 9 * left, (pt.mat.sound === 'jelly' ? 0.2 : 0.28) * (0.5 + 0.5 * left), dt);
+        if (pt.kind !== 'press' || !d || !d.active || !pt.mat || pt.mat.kind !== 'soft' || d.hold < 0.22) continue;
+        // 자국이 커지는 동안은 촘촘하게, 다 커진 뒤에도 손을 뗄 때까지 조금 작게 찌익찌익 이어진다 (숨 쉬듯 빠르기가 출렁)
+        const left = 1 - d.grow, breathe = 1 + 0.3 * Math.sin(d.hold * 2.3);
+        grains('creak', (6 + 9 * left) * breathe, (pt.mat.sound === 'jelly' ? 0.2 : 0.28) * (0.55 + 0.45 * left), dt);
       }
     }
 
@@ -2510,7 +2890,8 @@ void main() {
   tabWax.setAttribute('aria-selected', String(mode === 'wax'));
   tabKeycap.setAttribute('aria-selected', String(mode === 'keycap'));
   tabThrow.setAttribute('aria-selected', String(mode === 'throw'));
-  fixBtn.hidden = mode !== 'squishy' && mode !== 'ohaeng';
+  tabZodiac.setAttribute('aria-selected', String(mode === 'zodiac'));
+  fixBtn.hidden = mode !== 'squishy' && mode !== 'ohaeng' && mode !== 'zodiac';
   syncDim();
   buildChips(); applyTheme(); showHint(); syncSoundBtn(); syncFixBtn();
   {
