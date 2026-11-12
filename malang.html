@@ -136,7 +136,46 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
 }
 .badge b { background: var(--badge); color: #fff; font-size: 0.6875rem; line-height: 1; font-weight: 700; border-radius: 999px; padding: 4px 7px; white-space: nowrap; }
 .badge i { width: 0; height: 0; margin-top: -1px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--badge); }
-@media (max-width: 380px) { h1 { font-size: 1.35rem; } .pill { padding: 6px 9px; font-size: 0.75rem; } .tab { font-size: 0.6875rem; } }
+/* 손맛 조절: 가로 경도(말랑↔빡빡) × 세로 소리(사각↔쭈압) 판. 점을 끌면 바로 바뀌고 미리 들려준다 */
+.pill.icon { padding: 6px 9px; display: inline-flex; align-items: center; }
+.pill.icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+#tuneBtn[aria-pressed="true"] { color: var(--brand); border-color: var(--brand); background: var(--glass-strong); }
+.pill.small { padding: 4px 10px; font-size: 0.75rem; }
+.tune {
+  width: min(100%, 380px); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;
+  background: var(--glass-strong); border: 1px solid var(--line); border-radius: 20px; padding: 10px 12px 12px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.tune[hidden] { display: none; }
+.tune-head { display: flex; align-items: center; gap: 8px; }
+.tune-head b { font-size: 0.875rem; color: var(--ink); }
+.tune-val { flex: 1; min-width: 0; font-size: 0.75rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tune-pad {
+  position: relative; height: 150px; border-radius: 14px; touch-action: none; cursor: crosshair; outline: none;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 0.5px), var(--line) calc(50% - 0.5px), var(--line) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(0deg, transparent calc(50% - 0.5px), var(--line) calc(50% - 0.5px), var(--line) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(90deg, rgba(255, 31, 102, 0.05), rgba(24, 24, 27, 0.06)),
+    linear-gradient(0deg, rgba(251, 183, 23, 0.08), rgba(80, 160, 255, 0.08));
+  border: 1px solid var(--line);
+}
+.tune-pad:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ax { position: absolute; font-size: 0.6875rem; font-weight: 700; color: var(--ink-mute); pointer-events: none; }
+.ax-l { left: 8px; top: 50%; transform: translateY(-50%); }
+.ax-r { right: 8px; top: 50%; transform: translateY(-50%); }
+.ax-t { top: 6px; left: 50%; transform: translateX(-50%); }
+.ax-b { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.preset {
+  position: absolute; transform: translate(-50%, -50%); font: inherit; font-size: 0.6875rem; font-weight: 600; color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.86); border: 1px solid var(--line); border-radius: 999px; padding: 2px 7px; cursor: pointer; white-space: nowrap;
+}
+.preset:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.knob {
+  position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; pointer-events: none;
+  background: var(--brand); box-shadow: 0 0 0 3px #fff, 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.knob.ghost { background: transparent; box-shadow: 0 0 0 2px var(--brand), 0 0 0 4px #fff; }
+@media (max-width: 380px) { h1 { font-size: 1.35rem; } .pill { padding: 6px 9px; font-size: 0.75rem; } .tab { font-size: 0.6875rem; } .tune-pad { height: 130px; } }
 @media (prefers-reduced-motion: reduce) { .hint { transition: none; } }
 </style>
 
@@ -148,12 +187,31 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
       <button class="pill" id="soundBtn" type="button" aria-pressed="true">소리 켬</button>
       <button class="pill" id="fixBtn" type="button" aria-pressed="false">자국 고정</button>
       <button class="pill" id="resetBtn" type="button">새 공</button>
+      <button class="pill icon" id="tuneBtn" type="button" aria-pressed="false" aria-label="손맛 조절" title="손맛 조절">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
     </div>
   </header>
   <div class="status" id="status" hidden></div>
   <p class="fallback" id="fallback" hidden>이 브라우저에서는 WebGL을 쓸 수 없어서 공을 그릴 수 없어요.<br>사파리나 크롬 최신 버전에서 열어 주세요.</p>
   <nav class="dock" aria-label="놀잇감 고르기">
     <p class="hint" id="hint">꾹 누르면 쑥 · 두 손가락으로 쭉</p>
+    <section class="tune" id="tunePanel" aria-label="손맛 조절" hidden>
+      <div class="tune-head">
+        <b>손맛 조절</b>
+        <span class="tune-val" id="tuneVal">지금은 맛 기본값</span>
+        <button class="pill small" id="tuneReset" type="button">맛 기본값</button>
+      </div>
+      <div class="tune-pad" id="tunePad" role="slider" tabindex="0" aria-label="경도와 소리. 왼쪽 말랑, 오른쪽 빡빡, 위 쭈압, 아래 사각. 화살표로 움직여요.">
+        <span class="ax ax-l">말랑</span><span class="ax ax-r">빡빡</span><span class="ax ax-t">쭈압</span><span class="ax ax-b">사각</span>
+        <button type="button" class="preset" data-f="0.05" data-w="0.92">슬라임</button>
+        <button type="button" class="preset" data-f="0.24" data-w="0.64">찹쌀떡</button>
+        <button type="button" class="preset" data-f="0.14" data-w="0.3">마시멜로</button>
+        <button type="button" class="preset" data-f="0.4" data-w="0.08">스펀지</button>
+        <button type="button" class="preset" data-f="0.68" data-w="0.8">젤리</button>
+        <button type="button" class="preset" data-f="0.9" data-w="0.42">탱탱볼</button>
+        <span class="knob" id="tuneKnob" aria-hidden="true"></span>
+      </div>
+    </section>
     <div class="seg" id="dimSeg" role="group" aria-label="평면·입체 보기" hidden>
       <button type="button" id="dim2" aria-pressed="true">평면</button>
       <button type="button" id="dim3" aria-pressed="false">입체</button>
@@ -691,6 +749,37 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
         for (let i2 = 0; i2 < 3; i2++) { const tt = end + i2 * rnd(0.012, 0.02); chain(noise(oc, tt, 0.006), env(oc, tt, rnd(0.5, 0.75) * (1 - i2 * 0.2), 0.0008, 0.005), bp2); }
         const o = osc(oc, 'sine', rnd(150, 175), rnd(95, 110), end, end + 0.06);
         chain(o, env(oc, end, 0.1, 0.003, 0.06), D); o.start(end); o.stop(end + 0.12);
+      }],
+      // 사각: 마른 스펀지·모래를 누를 때 잘게 바스러지는 소리
+      sakak: [8, 0.6, (oc) => {
+        const D = oc.destination;
+        chain(noise(oc, 0, 0.5), filt(oc, 'highpass', rnd(2500, 3500), 0.7), env(oc, 0, rnd(0.06, 0.09), 0.04, 0.4), D);
+        const n = 60 + ((Math.random() * 30) | 0);
+        for (let k = 0; k < n; k++) {
+          const t = 0.01 + Math.pow(Math.random(), 1.3) * 0.48;
+          chain(noise(oc, t, 0.004), filt(oc, 'bandpass', rnd(2500, 7500), rnd(1.5, 3)), env(oc, t, rnd(0.08, 0.32) * (1 - t * 1.2), 0.0004, rnd(0.0015, 0.004)), D);
+        }
+        const o = osc(oc, 'sine', rnd(150, 180), rnd(90, 110), 0, 0.08);
+        chain(o, env(oc, 0, 0.12, 0.004, 0.08), D); o.start(0); o.stop(0.15);
+      }],
+      sakakGrain: [10, 0.06, (oc) => {
+        const n = 3 + ((Math.random() * 4) | 0);
+        for (let k = 0; k < n; k++) { const t = rnd(0, 0.04); chain(noise(oc, t, 0.004), filt(oc, 'bandpass', rnd(2500, 7000), 2), env(oc, t, rnd(0.15, 0.35), 0.0004, rnd(0.0015, 0.004)), oc.destination); }
+      }],
+      // 쭈압: 젖은 고무가 빨아들였다(쭈) 톡 떨어지는(압) 소리
+      juap: [8, 0.75, (oc) => {
+        const D = oc.destination;
+        const bp = filt(oc, 'bandpass', 380, 4);
+        bp.frequency.setValueAtTime(rnd(320, 380), 0); bp.frequency.linearRampToValueAtTime(rnd(650, 800), 0.42);
+        const g = oc.createGain(); g.gain.value = 3.5; bp.connect(g); g.connect(D);
+        const end = rnd(0.4, 0.48);
+        let t = 0.01;
+        while (t < end) { const k = t / end; chain(noise(oc, t, 0.006), env(oc, t, rnd(0.5, 0.8) * Math.min(1, t / 0.06) * (0.8 + 0.2 * k), 0.001, 0.006), bp); t += 1 / rnd(55, 75); }
+        chain(noise(oc, 0, end), filt(oc, 'lowpass', 900, 0.8), env(oc, 0, 0.1, 0.05, end), D);
+        const o = osc(oc, 'sine', rnd(320, 380), rnd(120, 150), end, end + 0.05);
+        chain(o, env(oc, end, 0.35, 0.002, 0.07), D); o.start(end); o.stop(end + 0.15);
+        chain(noise(oc, end, 0.02), filt(oc, 'bandpass', rnd(1200, 1600), 2), env(oc, end, 0.4, 0.0005, 0.012), D);
+        bubble(oc, end + rnd(0.02, 0.06), rnd(700, 1000));
       }],
       // 꾹 누르고 있는 동안 자국이 커지며 나는 작은 찌익 조각 — 촘촘히 틀면 끊기지 않는 찌—— 가 된다
       creak: [10, 0.14, (oc) => {
@@ -2149,7 +2238,30 @@ void main() {
   }
 
   /* ---------- 몸체 움직임 ---------- */
+  /* 손맛 조절: tune = { firm 0 말랑~1 빡빡, wet 0 사각~1 쭈압 }. 없으면 맛마다 정해 둔 손맛 */
+  let tune = null;
+  try { const t = JSON.parse(store.get('malang_tune') || 'null'); if (t && t.firm >= 0 && t.firm <= 1 && t.wet >= 0 && t.wet <= 1) tune = t; } catch (e) { /* 무시 */ }
+  const tuneOn = () => !!tune && (mode === 'squishy' || mode === 'ohaeng' || mode === 'zodiac');
+  const lerp = (a, b, k) => a + (b - a) * k;
+  let tunedCache = null;
+  function tunedFeel() {
+    const t = Math.round(tune.firm * 40) / 40;
+    if (tunedCache && tunedCache.t === t) return tunedCache.f;
+    let f;
+    if (t < 0.55) {   // 말랑 쪽: 깊게 눌리고 천천히 차오른다
+      const k = t / 0.55;
+      f = Object.assign({}, FEEL_BASE, { type: 'foam', depth: lerp(0.44, 0.3, k), r0: lerp(0.27, 0.24, k), recover: lerp(0.45, 2.0, k), stick: lerp(0.22, 0.04, k), sk: lerp(40, 160, k), sc: lerp(10, 14, k) });
+    } else {          // 빡빡 쪽: 얕게 눌리고 탱 하고 빨리 돌아온다
+      const k = (t - 0.55) / 0.45;
+      f = Object.assign({}, FEEL_BASE, { type: 'jelly', depth: lerp(0.3, 0.15, k), r0: lerp(0.24, 0.19, k), k: lerp(240, 520, k), c: lerp(9, 20, k), sk: lerp(240, 480, k), sc: lerp(8, 16, k), fk: lerp(260, 520, k), fc: lerp(9, 18, k) });
+    }
+    tunedCache = { t, f };
+    return f;
+  }
+  // 소리 섞기: 사각(아래)·찌이익(가운데)·쭈압(위)
+  const wetMix = (w) => [Math.max(0, 1 - 2 * w), 1 - Math.abs(2 * w - 1), Math.max(0, 2 * w - 1)];
   function bodyFeel() {
+    if (tuneOn()) return tunedFeel();
     if (mode !== 'wax') return cur().feel;
     return waxDone ? CRUSHED_FEEL : SHELL_FEEL;
   }
@@ -2167,6 +2279,7 @@ void main() {
     ball.cyEff = ball.cy + (1 - shape.extY) * ball.R * fb;
   }
   function stretchLimit() {
+    if (tuneOn()) return lerp(0.75, 0.35, tune.firm);   // 빡빡할수록 덜 늘어난다
     if (mode !== 'wax' || waxDone) return 0.6;
     return 0.05 + 0.8 * cover.broken;
   }
@@ -2491,15 +2604,30 @@ void main() {
   function noteInteraction() { if (++hintCount >= 3) hintEl.classList.add('gone'); }
 
   function pressSound(snd) {
+    if (snd === 'tune') {
+      const [a, b, c] = wetMix(tune.wet), r = lerp(0.85, 1.2, tune.firm) * rnd(0.95, 1.05);
+      if (a > 0.04) Sound.play('sakak', { gain: 0.75 * a, rate: r });
+      if (b > 0.04) Sound.play('squelch', { gain: 0.55 * b, rate: r });
+      if (c > 0.04) Sound.play('juap', { gain: 0.6 * c, rate: r });
+      return;
+    }
     if (snd === 'jelly') Sound.play('jellyPress', { gain: rnd(0.5, 0.65), rate: rnd(0.9, 1.12) });
     else Sound.play('squelch', { gain: rnd(0.45, 0.58), rate: snd === 'mochi' ? rnd(0.82, 0.95) : rnd(0.92, 1.1) });
   }
   function releaseSound(snd, ratio) {
+    if (snd === 'tune') {
+      const [a, b, c] = wetMix(tune.wet), r = lerp(0.9, 1.15, tune.firm) * rnd(0.95, 1.05);
+      if (a > 0.04) Sound.play('peel', { gain: (0.2 + 0.35 * ratio) * a, rate: r * 1.2 });
+      if (b > 0.04) Sound.play('foamRelease', { gain: (0.18 + 0.5 * ratio) * b, rate: r });
+      if (c > 0.04) Sound.play('jellyRelease', { gain: (0.25 + 0.42 * ratio) * c, rate: r });
+      return;
+    }
     if (snd === 'jelly') Sound.play('jellyRelease', { gain: 0.25 + 0.42 * ratio, rate: rnd(0.9, 1.15) });
     else if (snd === 'mochi') { Sound.play('peel', { gain: 0.3 + 0.42 * ratio, rate: rnd(0.9, 1.1) }); Sound.play('foamRelease', { gain: 0.25 * ratio, rate: rnd(0.9, 1.1) }); }
     else Sound.play('foamRelease', { gain: 0.18 + 0.52 * ratio, rate: rnd(0.9, 1.1) });
   }
   function materialAt(x, y) {
+    if (tuneOn()) return { kind: 'soft', feel: tunedFeel(), sound: 'tune' };
     if (mode !== 'wax') return { kind: 'soft', feel: cur().feel, sound: cur().sound };
     return waxMat(dirOf(toBall(x, y)));
   }
@@ -2527,7 +2655,7 @@ void main() {
       setDentMaterial(d, mat.feel);
       pt.dent = d;
     }
-    if (mat.kind === 'soft') { pressSound(mat.sound); tick(); buzz(8); }
+    if (mat.kind === 'soft') { pressSound(mat.sound); tick(); buzz(mat.sound === 'tune' ? Math.round(lerp(12, 5, tune.firm)) : 8); }
     else if (mat.kind === 'shell' || mat.kind === 'cracked') crackOpen(pt, mat.dir);
     else {
       startCrush(pt, mat.dir, 0.15); tick();
@@ -2674,12 +2802,67 @@ void main() {
     if (withSound) Sound.play('pop', { gain: 0.6 });
     forceDraw = true;
   }
+  const tuneBtn = $('tuneBtn'), tunePanel = $('tunePanel'), tunePad = $('tunePad'), tuneKnob = $('tuneKnob'), tuneVal = $('tuneVal'), tuneReset = $('tuneReset');
+  // 손맛 기본값일 때 판 위 자리: 맛에 정해 둔 손맛을 대략 옮겨 놓는다
+  function flavorTune() {
+    const f = cur().feel || FEEL_BASE, snd = cur().sound;
+    const firm = f.type === 'jelly' ? 0.55 + 0.45 * clamp(((f.k || 240) - 150) / 300, 0, 1) : 0.55 * clamp(((f.recover || 1) - 0.45) / 1.55, 0, 1);
+    return { firm, wet: snd === 'jelly' ? 0.78 : snd === 'mochi' ? 0.6 : 0.42 };
+  }
+  function syncTune() {
+    const soft = mode === 'squishy' || mode === 'ohaeng' || mode === 'zodiac';
+    tuneBtn.hidden = !soft;
+    if (!soft) tunePanel.hidden = true;
+    tuneBtn.setAttribute('aria-pressed', String(!tunePanel.hidden));
+    const t = tune || flavorTune();
+    tuneKnob.style.left = (8 + t.firm * 84) + '%'; tuneKnob.style.top = (8 + (1 - t.wet) * 84) + '%';
+    tuneKnob.classList.toggle('ghost', !tune);
+    const wetWord = t.wet < 0.34 ? '사각' : t.wet > 0.66 ? '쭈압' : '찌이익';
+    const firmWord = t.firm < 0.34 ? '말랑' : t.firm > 0.66 ? '빡빡' : '쫀득';
+    tuneVal.textContent = tune ? firmWord + ' ' + Math.round(t.firm * 100) + ' · ' + wetWord + ' ' + Math.round(t.wet * 100) : '지금은 맛 기본값 (' + firmWord + ' · ' + wetWord + ')';
+    tunePad.setAttribute('aria-valuetext', tuneVal.textContent);
+  }
+  document.querySelectorAll('.preset').forEach((b) => { b.style.left = (8 + (+b.dataset.f) * 84) + '%'; b.style.top = (8 + (1 - +b.dataset.w) * 84) + '%'; });
+  let tuneLastPreview = 0;
+  function setTune(firm, wet, preview) {
+    tune = { firm: clamp(firm, 0, 1), wet: clamp(wet, 0, 1) };
+    tunedCache = null;
+    store.set('malang_tune', JSON.stringify(tune));
+    syncTune();
+    const now = performance.now();
+    if (preview && now - tuneLastPreview > 260) { tuneLastPreview = now; Sound.unlock(); pressSound('tune'); buzz(Math.round(lerp(12, 5, tune.firm))); }
+  }
+  function padAt(e) {
+    const r = tunePad.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width - 0.08) / 0.84, 1 - ((e.clientY - r.top) / r.height - 0.08) / 0.84];
+  }
+  let padDrag = null;
+  tunePad.addEventListener('pointerdown', (e) => {
+    padDrag = e.pointerId;
+    try { tunePad.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+    const pb = e.target.classList.contains('preset') ? e.target : null;   // 예시 점에서 시작하면 그 값으로 맞추고 그대로 끌 수 있게
+    if (pb) setTune(+pb.dataset.f, +pb.dataset.w, true);
+    else { const [f, w] = padAt(e); setTune(f, w, true); }
+  });
+  tunePad.addEventListener('pointermove', (e) => { if (padDrag !== e.pointerId) return; const [f, w] = padAt(e); setTune(f, w, true); });
+  const padEnd = (e) => { if (padDrag === e.pointerId) padDrag = null; };
+  tunePad.addEventListener('pointerup', padEnd); tunePad.addEventListener('pointercancel', padEnd);
+  tunePad.addEventListener('keydown', (e) => {
+    const t = tune || flavorTune(), st = 0.05;
+    const mv = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, st], ArrowDown: [0, -st] }[e.key];
+    if (!mv) return;
+    e.preventDefault(); setTune(t.firm + mv[0], t.wet + mv[1], true);
+  });
+  document.querySelectorAll('.preset').forEach((b) => b.addEventListener('click', () => setTune(+b.dataset.f, +b.dataset.w, true)));
+  tuneReset.addEventListener('click', () => { tune = null; tunedCache = null; store.set('malang_tune', 'null'); syncTune(); });
+  tuneBtn.addEventListener('click', () => { tunePanel.hidden = !tunePanel.hidden; syncTune(); resize(); });
   function setFlavor(i) {
     idx[mode] = i;
     store.set('malang_idx_' + mode, String(i));
     [...chipsEl.children].forEach((c, k) => c.setAttribute('aria-pressed', String(k === i)));
     applyTheme();
     resetBall(true);
+    syncTune();
   }
   function setMode(m) {
     if (m === mode) return;
@@ -2694,6 +2877,7 @@ void main() {
     fixBtn.hidden = m !== 'squishy' && m !== 'ohaeng' && m !== 'zodiac';
     syncDim();
     buildChips(); applyTheme(); showHint(); resetBall(true);
+    syncTune();
     resize();
   }
   tabSquishy.addEventListener('click', () => setMode('squishy'));
@@ -2827,7 +3011,12 @@ void main() {
         // 찌이익 이 끝난 뒤(1초~), 자국이 다 커질 때까지만 작게 이어진다 — 중요한 건 찌이익 이라 뒤는 받쳐 주는 정도
         if (d.hold < 1.0 || d.grow >= 1) continue;
         const left = 1 - d.grow;
-        grains('creak', 5 + 7 * left, (pt.mat.sound === 'jelly' ? 0.16 : 0.22) * (0.5 + 0.5 * left), dt);
+        if (pt.mat.sound === 'tune') {
+          const [a, b, c] = wetMix(tune.wet);
+          if (a > 0.04) grains('sakakGrain', 14, 0.3 * a * (0.5 + 0.5 * left), dt);
+          if (b > 0.04) grains('creak', 5 + 7 * left, 0.22 * b * (0.5 + 0.5 * left), dt);
+          if (c > 0.04) grains('stick', 6, 0.28 * c * (0.5 + 0.5 * left), dt);
+        } else grains('creak', 5 + 7 * left, (pt.mat.sound === 'jelly' ? 0.16 : 0.22) * (0.5 + 0.5 * left), dt);
       }
     }
 
@@ -2903,7 +3092,7 @@ void main() {
   tabZodiac.setAttribute('aria-selected', String(mode === 'zodiac'));
   fixBtn.hidden = mode !== 'squishy' && mode !== 'ohaeng' && mode !== 'zodiac';
   syncDim();
-  buildChips(); applyTheme(); showHint(); syncSoundBtn(); syncFixBtn();
+  buildChips(); applyTheme(); showHint(); syncSoundBtn(); syncFixBtn(); syncTune();
   {
     const f = cur();
     colNow.top = f.bgRgb[0].slice(); colNow.bot = f.bgRgb[1].slice();
