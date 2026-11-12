@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Song+Myung&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Song+Myung&display=swap" media="print" onload="this.media='all'">
 <style>
 /* 한 화면짜리 법당 놀잇감. 위는 이름·도구·공덕 수, 아래는 재질 고르기 위에 어두운 유리 탭바.
    결: zinc 무채색 글자, 브랜드 핑크 강조, 둥근 유리 탭바. 바탕은 밝은 한지 한 가지로만 그린다. */
@@ -473,11 +473,16 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
         chain(noise(oc, 0, 0.01), filt(oc, 'highpass', 4000, 0.7), env(oc, 0, 0.2, 0.0003, 0.004), oc.destination);
       }],
     };
-    function render(dur, build) {
+    // 칠 때마다 높이를 살짝 바꿔 트니 변형은 이만큼이면 충분하다. 목탁 울림이 길어서 메모리를 가장 많이 먹는다
+    const COUNT = { mokJadan: 3, mokHoeyang: 3, mokHeukdan: 3, mokWood5: 3, mokFire5: 3, mokBrass: 2, mokWater: 3, mokClay: 3, mokJelly: 3, mokHandle: 4,
+      bell: 1, coin: 3, beadWood: 5, beadEbony: 5, beadJade: 5, beadPearl: 5, beadJelly: 4, beadGuru: 3, beadCoral: 5, beadAmber: 5, beadMetal: 5 };
+    // 높은 소리 성분이 없는 소리(목탁·종·나무 알)는 1초 표본을 22050 개로 — 들리는 차이 거의 없이 메모리 절반. 맑은 딸깍·쇠 소리는 32000
+    const LO = new Set(['mokJadan', 'mokHoeyang', 'mokHeukdan', 'mokWood5', 'mokFire5', 'mokBrass', 'mokWater', 'mokClay', 'mokJelly', 'mokHandle', 'bell', 'beadWood', 'beadEbony', 'beadGuru', 'beadAmber', 'beadJelly']);
+    function render(dur, build, sr) {
       return new Promise((resolve) => {
         if (!OAC) return resolve(null);
         let oc;
-        try { oc = new OAC(1, Math.ceil(44100 * dur), 44100); build(oc); } catch (e) { return resolve(null); }
+        try { oc = new OAC(1, Math.ceil(sr * dur), sr); build(oc); } catch (e) { return resolve(null); }
         try {
           const p = oc.startRendering();
           if (p && p.then) p.then(resolve, () => resolve(null));
@@ -485,18 +490,32 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
         } catch (e) { resolve(null); }
       });
     }
-    async function prepare() {
-      let total = 0;
-      for (const name of Object.keys(RECIPES)) {
-        const [count, dur, build] = RECIPES[name];
-        bank[name] = [];
-        for (let i = 0; i < count; i++) {
-          const b = await render(dur, build);
+    // 지금 고른 목탁·염주 소리부터 만들고, 나머지는 쉬는 틈에 하나씩
+    let queue = [], working = false, total = 0;
+    const breathe = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 250 }) : setTimeout(r, 30)));
+    function need(names) {
+      for (let i = names.length - 1; i >= 0; i--) { const j = queue.indexOf(names[i]); if (j > 0) { queue.splice(j, 1); queue.unshift(names[i]); } }
+    }
+    async function pump() {
+      if (working) return;
+      working = true;
+      while (queue.length) {
+        const name = queue.shift(), [count0, dur, build] = RECIPES[name], count = COUNT[name] || count0;
+        bank[name] = bank[name] || [];
+        for (let i = bank[name].length; i < count; i++) {
+          const b = await render(dur, build, LO.has(name) ? 22050 : 32000);
           if (b) { bank[name].push(b); total++; }
         }
+        if (queue.length) await breathe();
       }
+      working = false;
       window.__mokSounds = total;
       window.__mokBank = bank;
+    }
+    function prepare(first) {
+      queue = Object.keys(RECIPES).filter((n) => !bank[n]);
+      need(first || []);
+      pump();
     }
     // 법당처럼 살짝 긴 울림
     function makeIR(c) {
@@ -572,7 +591,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.55re
       if (!document.hidden && ctx && unlocked && ctx.state !== 'running') ctx.resume().catch(() => {});
     });
     window.__mokAudio = () => (ctx ? ctx.state : 'none');
-    return { prepare, unlock, play, choke, setOn, isOn: () => on };
+    return { prepare, need, unlock, play, choke, setOn, isOn: () => on };
   })();
 
   /* ---------- 진동: 안드로이드는 vibrate, 아이폰(iOS 18+)은 스위치 토글의 소리 없는 햅틱 ---------- */
@@ -1505,11 +1524,14 @@ void main() {
   function resize() {
     W = app.clientWidth; H = app.clientHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2) * quality;
-    glc.width = Math.max(1, Math.round(W * dpr)); glc.height = Math.max(1, Math.round(H * dpr));
+    // 캔버스 크기를 바꾸면 그림이 비워진다 — 같으면 건드리지 않고, 바꿨으면 바로 다시 그려서 빈 화면이 안 보이게
+    const cw = Math.max(1, Math.round(W * dpr)), ch = Math.max(1, Math.round(H * dpr)), changed = glc.width !== cw || glc.height !== ch;
+    if (changed) { glc.width = cw; glc.height = ch; }
     fxDpr = Math.min(window.devicePixelRatio || 1, 2);
     fxc.width = Math.round(W * fxDpr); fxc.height = Math.round(H * fxDpr);
     placeCamera();
     forceDraw = true;
+    if (changed && gl) { try { render(); } catch (e) { /* 다음 프레임에 그린다 */ } }
   }
 
   /* ---------- 손가락 ---------- */
@@ -1695,6 +1717,7 @@ void main() {
       b.appendChild(document.createTextNode(s.name));
       b.addEventListener('click', () => {
         skin[key] = i; store.set('mokyeom_skin_' + key, String(i));
+        Sound.need(soundsNow());
         [...chipsEl.children].forEach((c, j) => c.setAttribute('aria-pressed', String(j === i)));
         Sound.unlock();
         if (s.desc) toast(s.desc);
@@ -1704,6 +1727,13 @@ void main() {
       });
       chipsEl.appendChild(b);
     });
+  }
+  // 지금 고른 목탁·염주에 필요한 소리 (먼저 만든다)
+  function soundsNow() {
+    if (mode === 'moktak') return [curOf('moktak').sound, 'mokHandle', 'coin', 'bell'];
+    const B = curOf('mala');
+    const own = B.mat === 10 ? ELEM_BEAD.map((e) => e[0]) : [beadSound(B, 1)[0]];
+    return own.concat(['beadGuru', 'bell']);
   }
   function setMode(m) {
     if (mode === m) return;
@@ -1715,6 +1745,7 @@ void main() {
     segEl.hidden = m !== 'mala';
     glc.setAttribute('aria-label', m === 'moktak' ? '목탁. 누르면 똑 소리가 나요. 키보드에서는 스페이스로 쳐요.' : '염주. 아래로 쓸면 한 알씩 넘어가고, 꾹 눌러 잡은 채 빙글 돌리면 고리가 돌아요. 키보드에서는 아래 화살표로 넘겨요.');
     buildChips(); showHint(); syncCount(false); syncSeg();
+    Sound.need(soundsNow());
     placeCamera();
     forceDraw = true;
   }
@@ -1728,6 +1759,7 @@ void main() {
     if (five[mode] === v) return;
     five[mode] = v; store.set('mokyeom_five_' + mode, v ? '1' : '0');
     syncSeg(); buildChips();
+    Sound.need(soundsNow());
     const s = curOf(mode);
     if (v) toast(s.desc || '오행 — 木火土金水');
     forceDraw = true;
@@ -1749,7 +1781,8 @@ void main() {
   });
 
   /* ---------- 돌리기 ---------- */
-  let last = 0, frames = 0, slowFrames = 0;
+  let last = 0, frames = 0, slowFrames = 0, goodRuns = 0;
+  const bootAt = performance.now();
   function frame(now) {
     const dt = Math.min(0.033, Math.max(0.001, (now - last) / 1000));
     last = now;
@@ -1758,11 +1791,16 @@ void main() {
     if (busy) {
       render();
       forceDraw = false;
-      frames++;
-      if (dt > 0.026) slowFrames++;
-      if (frames >= 45) {
-        if (slowFrames > 30 && quality > 0.55) { quality -= 0.15; resize(); }
-        frames = 0; slowFrames = 0;
+      // 느린 기기면 해상도를 한 단계씩 낮추고, 다시 빨라지면 올린다. 열고 4초(소리 만드는 동안)는 판단하지 않고, 1.5초어치를 보고 정한다
+      if (now - bootAt > 4000) {
+        frames++;
+        if (dt > 0.026) slowFrames++;
+        if (frames >= 90) {
+          if (slowFrames > 60 && quality > 0.55) { quality -= 0.15; goodRuns = 0; resize(); }
+          else if (slowFrames < 8 && quality < 1) { if (++goodRuns >= 3) { quality = Math.min(1, quality + 0.15); goodRuns = 0; resize(); } }
+          else goodRuns = 0;
+          frames = 0; slowFrames = 0;
+        }
       }
     }
     requestAnimationFrame(frame);
@@ -1787,7 +1825,7 @@ void main() {
   window.addEventListener('resize', resize);
   if (window.ResizeObserver) new ResizeObserver(resize).observe(app);
   requestAnimationFrame((t) => { last = t; frame(t); });
-  Sound.prepare();
+  Sound.prepare(soundsNow());
   // 점검용: 그리기 한 장에 드는 시간
   window.__mokBench = (n) => { const t0 = performance.now(); for (let i = 0; i < n; i++) { render(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } return (performance.now() - t0) / n; };
   window.__mokPose = (sq, d) => { mokState.sq = sq; mokState.dent = d; dent.pt = DEFAULT_HIT; render(); };
